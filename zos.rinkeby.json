@@ -1,0 +1,32 @@
+{
+  "contracts": {
+    "PerformanceCollection": {
+      "address": "0xe61b8f63e97f9687c25f297c1d139a1863d0d8df",
+      "bytecodeHash": "cfbe5e186fe2db21dfc9dd133d6b296a7583c7bb5693ff877fdf4250b60e2b05"
+    },
+    "BancorFormula": {
+      "address": "0xd7d3318c13c282aca13e06d7e25784d010a18323",
+      "bytecodeHash": "1f6ac17ebc65e206543005233f04709d345de2b09dd5283ea50d91aa9ff4080c"
+    },
+    "PerformanceCard": {
+      "address": "0xa18bb417b946585012bbfdabf8d44594d50c3ff0",
+      "bytecodeHash": "cc31b1a2e983c867b10076a7dae3ca0b10db5cba7e0e9d68c046c25c341b389a"
+    }
+  },
+  "proxies": {},
+  "app": {
+    "address": "0xc89dea643ddaad1aa31e775a6f95378b218d0ac3"
+  },
+  "version": "0.1.0",
+  "package": {
+    "address": "0x54acbc06fe12f432e52974a627bf877ad9938ce9"
+  },
+  "provider": {
+    "address": "0x02dff7affbd89f7da81be5207dd97428f987e8db"
+  },
+  "stdlib": {
+    "address": "0x35de7ba3457f9ec93b5b9f05b47c2515ea6255f3",
+    "name": "openzeppelin-zos",
+    "version": "1.9.1"
+  }
+}

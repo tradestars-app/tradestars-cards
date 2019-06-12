@@ -1,0 +1,15 @@
+# NPM modules
+node_modules
+
+# Truffle artifacts
+build
+
+# ZeppelinOS local artifacts
+zos.local.json
+
+# Deployment configuration
+.env
+
+# Other
+.DS_Store
+.idea

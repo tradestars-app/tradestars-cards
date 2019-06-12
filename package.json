@@ -1,0 +1,42 @@
+{
+  "name": "tradestars-contracts",
+  "version": "1.0.0",
+  "description": "Contracts for TradeStars.app",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {
+    "@gnosis.pm/mock-contract": "^3.0.7",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babel-preset-stage-2": "^6.24.1",
+    "babel-preset-stage-3": "^6.24.1",
+    "babel-register": "^6.26.0",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^3.0.0",
+    "openzeppelin-eth": "^2.1.3",
+    "truffle-hdwallet-provider": "^1.0.10",
+    "zos": "^2.2.3",
+    "zos-lib": "^2.2.3"
+  },
+  "scripts": {
+    "test": "truffle test",
+    "build": "bash bin/build.sh",
+    "deploy": "bash bin/deploy.sh",
+    "lint:sol": "solium -d contracts",
+    "lint:sol:fix": "solium -d contracts --fix",
+    "copy-artifacts": "bash bin/copy-artifacts.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:chentschel/tradestars-contracts.git"
+  },
+  "author": "Christian Hentschel",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/chentschel/tradestars-contracts/issues"
+  },
+  "homepage": "https://github.com/chentschel/tradestars-contracts#readme"
+}
