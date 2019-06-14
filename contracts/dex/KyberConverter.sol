@@ -25,7 +25,16 @@ contract KyberConverter is Administrable {
     IKyberNetworkProxy private kyber;
 
     /// Fee wallet address
-    address private walletId = address(0);
+    address private walletId;
+
+    /**
+     * @dev Sets the receiving address of swap fees when using kyber
+     * @param _walletId address to receive fees
+     */
+    function setKyberFeeWallet(address _walletId) external onlyAdmin {
+       walletId = _walletId;
+       emit ChangedFeeWallet(msg.sender);
+    }
 
     function initialize(
         address _kyberProxy,
@@ -35,11 +44,6 @@ contract KyberConverter is Administrable {
     {
         kyber = IKyberNetworkProxy(_kyberProxy);
         walletId = _walletId;
-    }
-
-    function setKyberFeeWallet(address _walletId) public onlyAdmin {
-       walletId = _walletId;
-       emit ChangedFeeWallet(msg.sender);
     }
 
     /**
@@ -61,18 +65,16 @@ contract KyberConverter is Administrable {
     )
         internal
     {
-        /// Save prev src token balance
-        uint256 prevSrcBalance = _srcToken.balanceOf(_dstAddress);
-
         /// Transfer tokens to be converted from msg.sender to this contract
-        _srcToken.safeTransferFrom(msg.sender, _dstAddress, _srcAmount);
+        _srcToken.safeTransferFrom(msg.sender, address(this), _srcAmount);
 
         /// Approve Kyber to use _srcToken on belhalf of this contract
+        _srcToken.safeApprove(address(kyber), 0);
         _srcToken.safeApprove(address(kyber), _srcAmount);
 
         /// Trade _srcAmount from _srcToken to _destToken
         /// If _destAmount is set to 0, we use UINT256_MAX so all source tokens gets converted.
-        uint256 amount = kyber.trade(
+        kyber.trade(
             _srcToken,
             _srcAmount,
             _destToken,
@@ -81,19 +83,6 @@ contract KyberConverter is Administrable {
             _minConversionRate,
             walletId
         );
-
-        /// Clean kyber to use _srcTokens on belhalf of this contract
-        _srcToken.safeApprove(address(kyber), 0);
-
-        /// Return the change of src token
-        uint256 change = _srcToken.balanceOf(_dstAddress).sub(prevSrcBalance);
-
-        if (change > 0) {
-            _srcToken.safeTransfer(msg.sender, change);
-        }
-
-        /// Transfer amount of _destTokens to msg.sender
-        _destToken.safeTransfer(msg.sender, amount);
 
         emit SwapToken(msg.sender, address(_srcToken), address(_destToken));
     }

@@ -4,16 +4,20 @@ import "./Administrable.sol";
 
 contract GasPriceLimited is Administrable {
 
-    uint256 public gasPriceLimit = 26e9; // 26 Gwei
+    event GasPriceLimitChanged(address indexed account, uint256 value);
+
+    uint256 public gasPriceLimit;
 
     // Limits max amount of gas for buy/sell Tx.
     modifier gasPriceLimited {
-        require(tx.gasprice <= gasPriceLimit, "tx.gasPrice is > than gasPriceLimit");
+        require(tx.gasprice <= gasPriceLimit, "tx.gasprice is > than gasPriceLimit");
         _;
     }
 
-    function setGasPriceLimit(uint256 _gasPrice) public onlyAdmin {
-        require(_gasPrice > 0, "_gasPrice should be greater than 0");
-        gasPriceLimit = _gasPrice;
+    function setGasPriceLimit(uint256 value) external onlyAdmin {
+        require(value > 0, "new price value should be greater than 0");
+        gasPriceLimit = value;
+
+        emit GasPriceLimitChanged(msg.sender, gasPriceLimit);
     }
 }

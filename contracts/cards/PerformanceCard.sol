@@ -1,14 +1,13 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-eth/contracts/token/ERC20/IERC20.sol";
-
+import "../fractionable/FractionableERC721.sol";
 import "../utils/Administrable.sol";
 import "../utils/GasPriceLimited.sol";
-
 import "../dex/KyberConverter.sol";
-import "../fractionable/FractionableERC721.sol";
 
-contract PerformanceCard is Administrable, FractionableERC721, KyberConverter, GasPriceLimited {
+import "openzeppelin-eth/contracts/token/ERC20/IERC20.sol";
+
+contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, GasPriceLimited {
 
     using SafeMath for uint256;
 
@@ -59,6 +58,7 @@ contract PerformanceCard is Administrable, FractionableERC721, KyberConverter, G
         bytes32 checkHash = keccak256(
             abi.encodePacked(_tokenId, _symbol, _name, _score, _cardValue)
         );
+
         require(checkHash == _msgHash, "invalid msgHash");
         require(_isValidAdminHash(_msgHash, _signature), "invalid admin signature");
 
@@ -85,11 +85,11 @@ contract PerformanceCard is Administrable, FractionableERC721, KyberConverter, G
         uint256 netTokensToBurn = _cardValue.sub(cardInitialBalance);
 
         require(
-            tsToken.transferFrom(msg.sender, address(0), netTokensToBurn),
-            "Can't burn TS from msg.sender"
+            tsToken.transferFrom(msg.sender, owner(), netTokensToBurn),
+            "Can't transfer netTokensToBurn to contract owner"
         );
 
-        //// Create player card and issue the first tokens to the platform owner
+        /// Create player card and issue the first tokens to the platform owner
         _createCard(_tokenId, msg.sender, _symbol, _name, _score);
         _mintBondedERC20(_tokenId, owner(), ERC20_INITIAL_SUPPLY, cardInitialBalance);
     }
@@ -288,7 +288,7 @@ contract PerformanceCard is Administrable, FractionableERC721, KyberConverter, G
      * @param _token - ERC20 token registry
      * @param _amount - uint256 of amount of tokens
      */
-    function _requireBalance(address _sender, IERC20 _token, uint256 _amount) internal view {
+    function _requireBalance(address _sender, IERC20 _token, uint256 _amount) private view {
         require(_token.balanceOf(_sender) >= _amount, "Insufficient funds");
         require(_token.allowance(_sender, address(this)) >= _amount, "Insufficient allowance");
     }

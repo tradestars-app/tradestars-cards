@@ -1,6 +1,6 @@
 import { TestHelper } from 'zos';
 import { assertRevert, Contracts, ZWeb3 } from 'zos-lib';
-import { toWei, BN } from 'web3-utils';
+import { toWei, soliditySha3 } from 'web3-utils';
 
 ZWeb3.initialize(web3.currentProvider);
 
@@ -11,7 +11,8 @@ const BondedHelper = Contracts.getFromLocal('BondedERC20Helper');
 const PerformanceCard = Contracts.getFromLocal('PerformanceCard');
 
 /// Create a Mock Contract
-const MockContract = Contracts.getFromLocal('MockContract');
+const ERC20Mock = Contracts.getFromLocal('ERC20Mock');
+const KyberMock = Contracts.getFromLocal('KyberMock');
 
 /// check events
 function checkAdminEvent(tx, eventName) {
@@ -20,12 +21,24 @@ function checkAdminEvent(tx, eventName) {
 
 // Helper functions
 
-function createSignature(signer, msgHash) {
-  return web3.eth.sign(signer, msgHash);
+async function createSignature(msgHash, signer) {
+
+  const signature = await web3.eth.sign(msgHash, signer);
+
+  // in geth its always 27/28, in ganache its 0/1. Change to 27/28 to prevent
+  // signature malleability if version is 0/1
+  // see https://github.com/ethereum/go-ethereum/blob/v1.8.23/internal/ethapi/api.go#L465
+  let v = parseInt(signature.slice(130, 132), 16);
+  if (v < 27) {
+    v += 27;
+  }
+  const vHex = v.toString(16);
+
+  return signature.slice(0, 130) + vHex;
 }
 
 function createHash(args) {
-  return Web3Utils.soliditySha3(
+  return soliditySha3(
     { t: 'uint256', v: args['tokenId'] },
     { t: 'string', v: args['symbol'] },
     { t: 'string', v: args['name'] },
@@ -44,64 +57,25 @@ function createCardArgs(tokenId) {
   };
 }
 
-async function createCard(tokenId, msgSigner, msgFrom) {
-  let args = createCardArgs(tokenId);
-
-  // console.log(args);
-  const tx = await contract.createCard(
-    args['tokenId'],
-    args['symbol'],
-    args['name'],
-    args['score'],
-    args['cardValue'],
-    createHash(args),
-    createSignature(
-      msgSigner, createHash(args)
-    ),
-    {
-      from: msgFrom,
-      gasPrice: 26e9
-    }
-  );
-
-  console.log("Gas ->", tx.receipt.gasUsed);
-}
-
 contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buyer2, buyer3, buyer4]) => {
 
   let contract;
+  let tsToken;
+  let reserveToken;
+  let kyberProxy;
 
   before(async function() {
     const project = await TestHelper();
 
-    /// Create a TS Mock
-    const tsToken = await MockContract.new({
-      from: owner,
-      gas: 4712388
-    });
+    /// Create Mock ERC20 Contracts
+    tsToken = await ERC20Mock.new({ gas: 4712388 });
+    reserveToken = await ERC20Mock.new({ gas: 4712388 });
 
-    /// Create a Reserve Mock
-    const reserveToken = await MockContract.new({
-      from: owner,
-      gas: 4712388
-    });
+    /// Create Mock kyberProxy
+    kyberProxy = await KyberMock.new({ gas: 4712388 });
 
-    /// Create a Kyber Mock
-    const kyberProxy = await MockContract.new({
-      from: owner,
-      gas: 4712388
-    });
-
-    /// Configure default return types
-    await tsToken.methods.givenAnyReturnBool(true).send();
-    await reserveToken.methods.givenAnyReturnBool(true).send();
-    await kyberProxy.methods.givenAnyReturnUint(0).send();
-
-    /// Create a BondedHelper
-    const bondedHelper = await BondedHelper.new({
-      from: owner,
-      gas: 4712388
-    });
+    /// Create BondedHelper
+    const bondedHelper = await BondedHelper.new({ gas: 4712388 });
 
     // Create new PerformanceCard registry
     contract = await project.createProxy(PerformanceCard, {
@@ -172,24 +146,90 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
   });
 
-  describe('Tests createCard()', function() {
+  describe('Tests gasPriceLimit Management', function() {
+
     before(async function() {
       await contract.methods.addAdmin(admin).send({ from: owner });
     });
 
-    it(`Should OK create`, async function() {
-      const tokenId = 1000;
-      await createCard(tokenId, admin, someone);
+    it(`Should OK setGasPriceLimit()`, async function() {
+      let gasLimit = await contract.methods.gasPriceLimit().call();
+      gasLimit.should.be.eq('0');
+
+      const newLimit = toWei('26', 'gwei');
+
+      const tx = await contract.methods.setGasPriceLimit(newLimit).send({
+        from: admin
+      });
+
+      checkAdminEvent(tx, 'GasPriceLimitChanged');
+
+      gasLimit = await contract.methods.gasPriceLimit().call();
+      gasLimit.should.be.eq(newLimit);
     });
 
-    // it(`Should FAIL create :: (bad signer)`, async function() {
+    it(`Should FAIL setGasPriceLimit() :: not admin`, async function() {
+      const newLimit = toWei('26', 'gwei');
+      await assertRevert(
+        contract.methods.setGasPriceLimit(newLimit).send({
+          from: someone
+        })
+      );
+    });
+
+  });
+
+  describe('Tests Create Card', function() {
+
+    async function createCard(tokenId, msgSigner, msgSender) {
+
+      const args = createCardArgs(tokenId);
+      const msgHash = createHash(args);
+      const signature = await createSignature(msgHash, msgSigner);
+
+      return contract.methods.createCard(
+        args['tokenId'],
+        args['symbol'],
+        args['name'],
+        args['score'],
+        args['cardValue'],
+        msgHash,
+        signature
+      ).send({
+        from: msgSender,
+        gas: '4000000',
+        gasPrice: toWei('10', 'gwei')
+      });
+    }
+
+    before(async function() {
+      const mintAmount = toWei('100');
+
+      await tsToken.methods.mint(someone, mintAmount).send();
+      await reserveToken.methods.mint(kyberProxy.address, mintAmount).send();
+
+      /// Aprove Card contract to spend up to mintAmount TS
+      await tsToken.methods.approve(contract.address, mintAmount).send({
+        from: someone
+      });
+    });
+
+    it(`Should OK createCard()`, async function() {
+      const tokenId = 1000;
+      const tx = await createCard(tokenId, admin, someone);
+
+      console.log(tx);
+      console.log("tx.gasUsed ->", tx.gasUsed);
+    });
+
+    // it(`Should FAIL createCard() :: bad signer`, async function() {
     //   const tokenId = 1001;
     //   await assertRevert(
     //     createCard(tokenId, aWallet)
     //   );
     // });
 
-    // it(`Should FAIL create :: (card exists)`, async function() {
+    // it(`Should FAIL createCard() :: card exists`, async function() {
     //   const tokenId = 1000;
     //   await assertRevert(
     //     createCard(tokenId, owner)

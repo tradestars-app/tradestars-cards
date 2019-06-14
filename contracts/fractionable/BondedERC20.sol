@@ -54,8 +54,8 @@ contract BondedERC20 is ERC20 {
      * @param amount of tokens to mint
      * @param value value in reserve of the minted tokens
      */
-    function mint(address to, uint256 amount, uint256 value) external onlyOwner {
-        super._mint(to, amount);
+    function mint(address to, uint256 amount, uint256 value) public onlyOwner {
+        _mint(to, amount);
 
         /// update reserve balance
         poolBalance = poolBalance.add(value);
@@ -68,8 +68,8 @@ contract BondedERC20 is ERC20 {
      * @param amount of tokens to burn
      * @param value value in reserve of the burned tokens
      */
-    function burn(address burner, uint256 amount, uint256 value) external onlyOwner {
-        super._burn(burner, amount);
+    function burn(address burner, uint256 amount, uint256 value) public onlyOwner {
+        _burn(burner, amount);
 
         /// update reserve balance
         poolBalance = poolBalance.sub(value);
