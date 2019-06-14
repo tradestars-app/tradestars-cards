@@ -1,5 +1,5 @@
 # Contracts for TradeStars App.
-[![Build Status](https://travis-ci.com/chentschel/tradestars-contracts.svg?branch=master)](https://travis-ci.com/chentschel/tradestars-contracts)
+[![Build Status](https://travis-ci.com/tradestars-app/tradestars-contracts.svg?branch=master)](https://travis-ci.com/tradestars-app/tradestars-contracts)
 
 ## Game Design
 
@@ -29,8 +29,8 @@ $ zos --version
 After installing the dependencies previously mentioned, clone the project repository and enter the root directory:
 
 ```
-$ git clone git@github.com:chentschel/tradestars-contracts.git
-$ cd tradestars-contracts
+$ git clone git@github.com:tradestars-app/tradestars-cards.git
+$ cd tradestars-cards
 ```
 
 Then, install ZeppelinOS and project dependencies:
