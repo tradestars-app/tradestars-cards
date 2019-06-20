@@ -13,24 +13,27 @@ module.exports = {
     local: {
       host: 'localhost',
       port: 9545,
+      gas: 6721975,
+      gasPrice: 5e9,
       network_id: '*',
-      websockets: true,
-      gas: 8000000
+      websockets: true
     },
     ropsten: {
       provider: function() {
         return new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`)
       },
-      network_id: 3,
-      gas: 6721975
+      gas: 6721975,
+      gasPrice: 5e9,
+      network_id: 3
 
     },
     mainnet: {
       provider: function() {
         return new HDWalletProvider(mnemonic, `https://mainnet.infura.io/v3/${infuraKey}`)
       },
-      network_id: 1,
-      gas: 6721975
+      gas: 5000000,
+      gasPrice: 5e9,
+      network_id: 1
     }
   },
   compilers: {
@@ -44,7 +47,7 @@ module.exports = {
     }
   },
   mocha: {
-    timeout: 10000000,
+    timeout: 10000,
     slow: 30000
   }
 };

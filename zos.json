@@ -1,9 +1,12 @@
 {
   "zosversion": "2.2",
-  "name": "tradestars-cards",
-  "version": "1.0.0",
+  "name": "PerformanceCard",
+  "version": "0.1.0",
   "contracts": {
     "PerformanceCard": "PerformanceCard",
     "PerformanceCollection": "PerformanceCollection"
+  },
+  "dependencies": {
+    "openzeppelin-eth": "^2.2.0"
   }
 }

@@ -25,9 +25,8 @@
     "zos-lib": "^2.3.0"
   },
   "scripts": {
-    "test": "truffle test --network local",
-    "build": "bash bin/build.sh",
-    "deploy": "bash bin/deploy.sh",
+    "compile": "rm -rf build && truffle compile",
+    "test": "npm run compile && truffle test",
     "lint:sol": "solium -d contracts",
     "lint:sol:fix": "solium -d contracts --fix",
     "copy-artifacts": "bash bin/copy-artifacts.sh"
