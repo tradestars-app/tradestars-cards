@@ -6,9 +6,12 @@ import "../utils/GasPriceLimited.sol";
 import "../dex/KyberConverter.sol";
 
 import "openzeppelin-eth/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-eth/contracts/token/ERC20/SafeERC20.sol";
+
 
 contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, GasPriceLimited {
 
+    using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
     /// .0001 precision.
@@ -34,6 +37,84 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
     mapping(uint256 => uint32) private cardScoresMap;
 
     /**
+     * @dev Initializer for PerformanceCard contract
+     * @param _sender - address owner of the contract
+     * @param _tsToken - ERC20 address of TS token
+     * @param _kyberProxy - Kyber proxy address
+     * @param _bondedHelper - Bonded helper contract
+     */
+     function initialize(
+        address _sender,
+        address _tsToken,
+        address _reserveToken,
+        address _kyberProxy,
+        address _bondedHelper
+    )
+        public initializer
+    {
+        Administrable.initialize(_sender);
+        KyberConverter.initialize(_kyberProxy, _sender);
+
+        FractionableERC721.initialize(
+            "TradeStars Performance Cards' Registry",
+            "TSCARD",
+            "https://api.tradestars.app/cards/",
+            _bondedHelper
+        );
+
+        /// Set TS and Reseve Token addresses
+        tsToken = IERC20(_tsToken);
+        reserveToken = IERC20(_reserveToken);
+    }
+
+    /**
+     * @dev Set registry base token URI
+     * @param _uri string of the base uri in the form: 'schema://domain/path'
+     */
+    function setBaseTokenUri(string calldata _uri) external onlyAdmin {
+        _setBaseTokenUri(_uri);
+    }
+
+    /**
+     * @dev Bulk update scores for tokenIds
+     * @param _tokenId tokenId to query for
+     */
+    function getScore(uint256 _tokenId) external view returns (uint256) {
+        require(_exists(_tokenId), "tokenId does not exists");
+        return cardScoresMap[_tokenId];
+    }
+
+    /**
+     * @dev Updates Score of given tokenId.
+     * @param _tokenId tokenId to update
+     * @param _score scores
+     */
+    function updateScore(uint256 _tokenId, uint32 _score) public onlyAdmin {
+        require(_exists(_tokenId), "tokenId not created");
+        require(_score > 0 && _score <= (100 * MATH_PRECISION), "invalid score");
+
+        cardScoresMap[_tokenId] = _score;
+    }
+
+    /**
+     * @dev Bulk update scores for tokenIds
+     * @param _tokenIds uint256 array of tokenIds to update
+     * @param _scores uint32 array of scores
+     */
+    function updateScoresBulk(
+        uint256[] calldata _tokenIds,
+        uint32[] calldata _scores
+    )
+        external onlyAdmin
+    {
+        require(_tokenIds.length == _scores.length, "arrays should be of equal length");
+
+        for (uint i = 0; i < _tokenIds.length; i++) {
+            updateScore(_tokenIds[i], _scores[i]);
+        }
+    }
+
+    /**
      * @dev Create Performance Card
      * @param _tokenId card id
      * @param _symbol card symbol
@@ -54,6 +135,8 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
     )
         external gasPriceLimited
     {
+        require(!_exists(_tokenId), "Card already created");
+
         /// Check hashed message & admin signature
         bytes32 checkHash = keccak256(
             abi.encodePacked(_tokenId, _symbol, _name, _score, _cardValue)
@@ -84,10 +167,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         /// Burn the card value minus initial ERC20 balance
         uint256 netTokensToBurn = _cardValue.sub(cardInitialBalance);
 
-        require(
-            tsToken.transferFrom(msg.sender, owner(), netTokensToBurn),
-            "Can't transfer netTokensToBurn to contract owner"
-        );
+        tsToken.safeTransferFrom(msg.sender, owner(), netTokensToBurn);
 
         /// Create player card and issue the first tokens to the platform owner
         _createCard(_tokenId, msg.sender, _symbol, _name, _score);
@@ -110,15 +190,8 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         uint256 iFee = _value.mul(OWNER_INVESTMENT_FEE).div(MATH_PRECISION);
 
         /// Transfer Tx Fees.
-        require(
-            tsToken.transferFrom(msg.sender, owner(), pFee),
-            "Can't transfer buy tx platform fee to contract owner"
-        );
-
-        require(
-            tsToken.transferFrom(msg.sender, ownerOf(_tokenId), iFee),
-            "Can't transfer buy tx investment fee to card owner"
-        );
+        tsToken.safeTransferFrom(msg.sender, owner(), pFee);
+        tsToken.safeTransferFrom(msg.sender, ownerOf(_tokenId), iFee);
 
         /// The final _value after tx fees.
         uint256 netValue = _value.sub(pFee + iFee);
@@ -134,7 +207,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         );
 
         /// The estimated amount of bonded tokens for provided value
-        uint256 amount = _estimatePlayerTokens(_tokenId, netValue);
+        uint256 amount = _estimateCardBondedTokens(_tokenId, netValue);
 
         /// Mint tokens for this investor
         _mintBondedERC20(_tokenId, msg.sender, amount, netValue);
@@ -191,68 +264,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
             .mul(GAME_INVESTMENT_FEE + OWNER_INVESTMENT_FEE)
             .div(MATH_PRECISION);
 
-        return _estimatePlayerTokens(_tokenId, _value.sub(fees));
-    }
-
-    /**
-     * @dev Bulk update scores for tokenIds
-     * @param _tokenIds uint256 array of tokenIds to update
-     * @param _scores uint32 array of scores
-     */
-    function updateScoresBulk(
-        uint256[] calldata _tokenIds,
-        uint32[] calldata _scores
-    )
-        external onlyAdmin
-    {
-        require(_tokenIds.length == _scores.length, "arrays should be of equal length");
-
-        for (uint i = 0; i < _tokenIds.length; i++) {
-            updateScore(_tokenIds[i], _scores[i]);
-        }
-    }
-
-    /**
-     * @dev Updates Score of given tokenId.
-     * @param _tokenId tokenId to update
-     * @param _score scores
-     */
-    function updateScore(uint256 _tokenId, uint32 _score) public onlyAdmin {
-        require(_exists(_tokenId), "tokenId not created");
-        require(_score > 0 && _score <= (100 * MATH_PRECISION), "invalid score");
-
-        cardScoresMap[_tokenId] = _score;
-    }
-
-    /**
-     * @dev Initializer for PerformanceCard contract
-     * @param _sender - address owner of the contract
-     * @param _tsToken - ERC20 address of TS token
-     * @param _kyberProxy - Kyber proxy address
-     * @param _bondedHelper - Bonded helper contract
-     */
-     function initialize(
-        address _sender,
-        address _tsToken,
-        address _reserveToken,
-        address _kyberProxy,
-        address _bondedHelper
-    )
-        public initializer
-    {
-        Administrable.initialize(_sender);
-        KyberConverter.initialize(_kyberProxy, _sender);
-
-        FractionableERC721.initialize(
-            "TradeStars Performance Card Registry",
-            "TSCARD",
-            "https://api.tradestars.app/cards/",
-            _bondedHelper
-        );
-
-        /// Set TS and Reseve Token addresses
-        tsToken = IERC20(_tsToken);
-        reserveToken = IERC20(_reserveToken);
+        return _estimateCardBondedTokens(_tokenId, _value.sub(fees));
     }
 
     /**
@@ -270,7 +282,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         string memory _name,
         uint32 _score
     )
-        internal
+        private
     {
         require(_score > 0, "Score should be > 0");
         require(_score <= MATH_PRECISION, "Score should be <= 10000");
@@ -299,7 +311,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
      * @param _tokenId NFT tokenId
      * @param _value in wei amount.
      */
-    function _estimatePlayerTokens(uint256 _tokenId, uint256 _value) private view returns (uint256) {
+    function _estimateCardBondedTokens(uint256 _tokenId, uint256 _value) private view returns (uint256) {
         return _estimateBondedERC20Tokens(
             _tokenId,
             _value.mul(MATH_PRECISION - cardScoresMap[_tokenId]).div(MATH_PRECISION)

@@ -148,7 +148,7 @@ contract PerformanceCollection is Administrable, FractionableERC721, GasPriceLim
         address seller = msg.sender;
 
         // Get total balance for this sender
-        uint256 totalAmount = _getFungible(_collectionId).balanceOf(seller);
+        uint256 totalAmount = getBondedERC20(_collectionId).balanceOf(seller);
         uint256 totalSellValue = 0;
 
         require(_amount <= totalAmount, "sell amount should be <= balance");
@@ -299,7 +299,7 @@ contract PerformanceCollection is Administrable, FractionableERC721, GasPriceLim
         uint256 tsTokensLen = cinfo.ownershipArrayMap[seller].length;
 
         // Get total balance for this sender
-        uint256 totalAmount = _getFungible(_collectionId).balanceOf(seller);
+        uint256 totalAmount = getBondedERC20(_collectionId).balanceOf(seller);
         uint256 totalSellValue = 0;
 
         for (uint i = 0; i < tsTokensLen; i++) {

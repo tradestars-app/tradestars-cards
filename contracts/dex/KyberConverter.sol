@@ -19,7 +19,7 @@ contract KyberConverter is Administrable {
 
     /// Events.
     event SwapToken(address indexed sender, address srcToken, address destToken);
-    event ChangedFeeWallet(address indexed sender);
+    event SwapFeeWallet(address indexed sender);
 
     /// Kyber proxy address
     IKyberNetworkProxy private kyber;
@@ -33,7 +33,7 @@ contract KyberConverter is Administrable {
      */
     function setKyberFeeWallet(address _walletId) external onlyAdmin {
        walletId = _walletId;
-       emit ChangedFeeWallet(msg.sender);
+       emit SwapFeeWallet(msg.sender);
     }
 
     function initialize(

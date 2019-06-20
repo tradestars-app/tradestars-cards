@@ -1,6 +1,8 @@
 import { TestHelper } from 'zos';
 import { assertRevert, Contracts, ZWeb3 } from 'zos-lib';
-import { toWei, soliditySha3 } from 'web3-utils';
+import { toWei, soliditySha3, toBN } from 'web3-utils';
+
+console.log("web3.version: ", web3.version);
 
 ZWeb3.initialize(web3.currentProvider);
 
@@ -21,23 +23,44 @@ function checkAdminEvent(tx, eventName) {
 
 // Helper functions
 
-async function createSignature(msgHash, signer) {
+const assertGasLt = async (txHash, expected) => {
+  const { gas } = await ZWeb3.getTransaction(txHash);
+  gas.should.be.at.most(parseInt(expected));
+};
 
+const assertGas = async (txHash, expected) => {
+  const { gas } = await ZWeb3.getTransaction(txHash);
+  gas.should.be.eq(parseInt(expected));
+};
+
+const assertGasPrice = async (txHash, expected) => {
+  const { gasPrice } = await ZWeb3.getTransaction(txHash);
+  parseInt(gasPrice, 10).should.be.eq(expected);
+};
+
+const assertFrom = async (txHash, expected) => {
+  const { from } = await ZWeb3.getTransaction(txHash);
+  from.should.be.eq(expected);
+};
+
+const createSignature = async  (msgHash, signer) => {
   const signature = await web3.eth.sign(msgHash, signer);
 
   // in geth its always 27/28, in ganache its 0/1. Change to 27/28 to prevent
   // signature malleability if version is 0/1
   // see https://github.com/ethereum/go-ethereum/blob/v1.8.23/internal/ethapi/api.go#L465
   let v = parseInt(signature.slice(130, 132), 16);
+
   if (v < 27) {
     v += 27;
   }
+
   const vHex = v.toString(16);
 
   return signature.slice(0, 130) + vHex;
 }
 
-function createHash(args) {
+const createHash = (args) => {
   return soliditySha3(
     { t: 'uint256', v: args['tokenId'] },
     { t: 'string', v: args['symbol'] },
@@ -47,12 +70,12 @@ function createHash(args) {
   );
 }
 
-function createCardArgs(tokenId) {
+const createCardArgs = (tokenId) => {
   return {
     'tokenId': tokenId,
     'symbol': `T${tokenId}`,
     'name': `Test Card ${tokenId}`,
-    'score': Math.floor(Math.random() * 9000 + 1000),
+    'score': 5500,
     'cardValue': toWei('1')
   };
 }
@@ -68,14 +91,14 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
     const project = await TestHelper();
 
     /// Create Mock ERC20 Contracts
-    tsToken = await ERC20Mock.new({ gas: 4712388 });
-    reserveToken = await ERC20Mock.new({ gas: 4712388 });
+    tsToken = await ERC20Mock.new({ gas: 4000000 });
+    reserveToken = await ERC20Mock.new({ gas: 4000000 });
 
     /// Create Mock kyberProxy
-    kyberProxy = await KyberMock.new({ gas: 4712388 });
+    kyberProxy = await KyberMock.new({ gas: 4000000 });
 
     /// Create BondedHelper
-    const bondedHelper = await BondedHelper.new({ gas: 4712388 });
+    const bondedHelper = await BondedHelper.new({ gas: 4000000 });
 
     // Create new PerformanceCard registry
     contract = await project.createProxy(PerformanceCard, {
@@ -170,6 +193,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
     it(`Should FAIL setGasPriceLimit() :: not admin`, async function() {
       const newLimit = toWei('26', 'gwei');
+
       await assertRevert(
         contract.methods.setGasPriceLimit(newLimit).send({
           from: someone
@@ -179,31 +203,29 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
   });
 
-  describe('Tests Create Card', function() {
+  describe('Tests Card Create', function() {
+    async function createCard(cardArgs, msgSigner, msgSender) {
 
-    async function createCard(tokenId, msgSigner, msgSender) {
-
-      const args = createCardArgs(tokenId);
-      const msgHash = createHash(args);
+      const msgHash = createHash(cardArgs);
       const signature = await createSignature(msgHash, msgSigner);
 
       return contract.methods.createCard(
-        args['tokenId'],
-        args['symbol'],
-        args['name'],
-        args['score'],
-        args['cardValue'],
+        cardArgs['tokenId'],
+        cardArgs['symbol'],
+        cardArgs['name'],
+        cardArgs['score'],
+        cardArgs['cardValue'],
         msgHash,
         signature
       ).send({
         from: msgSender,
-        gas: '4000000',
+        gas: 4000000,
         gasPrice: toWei('10', 'gwei')
       });
     }
 
     before(async function() {
-      const mintAmount = toWei('100');
+      const mintAmount = toWei('1000');
 
       await tsToken.methods.mint(someone, mintAmount).send();
       await reserveToken.methods.mint(kyberProxy.address, mintAmount).send();
@@ -216,122 +238,191 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
     it(`Should OK createCard()`, async function() {
       const tokenId = 1000;
-      const tx = await createCard(tokenId, admin, someone);
+      const cardArgs = createCardArgs(tokenId);
 
-      console.log(tx);
-      console.log("tx.gasUsed ->", tx.gasUsed);
+      /// BUG: can't use await. Promise returns unresolved and hangs test.
+      createCard(cardArgs, admin, someone).then(async (rcpt) => {
+        const uri = await contract.methods.tokenURI(tokenId).call();
+        uri.should.be.eq(`https://api.tradestars.app/cards/${tokenId}`);
+      });
     });
 
-    // it(`Should FAIL createCard() :: bad signer`, async function() {
-    //   const tokenId = 1001;
-    //   await assertRevert(
-    //     createCard(tokenId, aWallet)
-    //   );
-    // });
+    it(`Should FAIL createCard() :: card exists`, async function() {
+      const tokenId = 1000;
+      const cardArgs = createCardArgs(tokenId);
 
-    // it(`Should FAIL createCard() :: card exists`, async function() {
-    //   const tokenId = 1000;
-    //   await assertRevert(
-    //     createCard(tokenId, owner)
-    //   );
-    // });
+      await assertRevert(
+        createCard(cardArgs, admin, someone)
+      );
+    });
+
+    it(`Should FAIL createCard() :: bad signer`, async function() {
+      const tokenId = 1001;
+      const cardArgs = createCardArgs(tokenId);
+
+      await assertRevert(
+        createCard(cardArgs, anotherone, someone)
+      );
+    });
   });
 
-  describe('Test Card Management', function() {
+  describe('Test Card Score Management', function() {
 
-    // it(`should OK getCardInfo()`, async function() {
-    //   const tokenId = 1000;
-    //   const [ score, name ] = await contract.getCardInfo(tokenId);
+    const tokenId = 1000;
+    let score = 0;
 
-    //   name.should.be.equal(`Test Card ${tokenId}`);
-    //   score.should.be.bignumber.equal(10.00 * 1e4);
-    // });
+    it(`should OK getScore()`, async function() {
+      score = await contract.methods.getScore(tokenId).call();
+      score.should.be.eq('5500'); /// created token initial score
+    });
 
-    // it(`should OK updateScore()`, async function() {
-    //   const tokenId = 1000;
-    //   const newScore = 10.52 * 1e4;
+    it(`should OK updateScore()`, async function() {
+      const newScore = 3500;
 
-    //   await contract.updateScore(tokenId, newScore, { from: owner });
+      await contract.methods.updateScore(tokenId, newScore).send({
+        from: admin
+      });
 
-    //   const [ score, name ] = await contract.getPlayerInfo(tokenId);
-    //   score.should.be.bignumber.equal(newScore);
-    // });
+      score = await contract.methods.getScore(tokenId).call();
+      score.should.be.eq('3500');
+    });
 
-    // it(`should OK updateScoresBulk()`, async function() {
-    //   const tokenIds = [1000, 1001];
-    //   const scores = [(10 * 1e4), (10 * 1e4)];
+    it(`should OK updateScoresBulk()`, async function() {
+      const tokenIds = [tokenId, tokenId];
+      const newScores = [2000, 3000];
 
-    //   await contract.updateScoresBulk(tokenIds, scores, {
-    //     from: owner
-    //   });
-    // });
+      await contract.methods.updateScoresBulk(tokenIds, newScores).send({
+        from: admin
+      });
 
-    // it(`should FAIL updateScore() :: not admin`, async function() {
-    //   const tokenId = 1000;
-    //   const newScore = 10.52 * 1e4;
+      score = await contract.methods.getScore(tokenId).call();
+      score.should.be.eq('3000');
+    });
 
-    //   await assertRevert(
-    //     contract.updateScore(tokenId, newScore, { from: someone })
-    //   );
-    // });
+    it(`should FAIL updateScore() :: not admin`, async function() {
+      const newScore = 7000;
+
+      await assertRevert(
+        contract.methods.updateScore(tokenId, newScore).send({
+          from: someone
+        })
+      );
+    });
 
   });
 
-  describe('Test BondedERC20 Balances', function() {
-  //   const ERC20_INITIAL_SUPPLY = toWei('100000');
+  describe('Test BondedERC20 initial balances', function() {
 
-  //   it('Should OK check balances', async function() {
-  //     const tokenId = 1000;
+    const tokenId = 1000;
+    const cardValue = toWei('1');
 
-  //     const addr = await contract.fungiblesMap(tokenId);
-  //     const bondedToken = BondedERC20.at(addr);
+    let bondedToken = null;
 
-  //     const poolBalance = await bondedToken.poolBalance();
-  //     const totalSupply = await bondedToken.totalSupply();
+    let MATH_PRECISION = 0;
+    let ERC20_INITIAL_SUPPLY = 0;
+    let ERC20_INITIAL_POOL_SHARE = 0;
 
-  //     const valueToReceive = await contract.estimateValue(tokenId, totalSupply);
+    before(async function() {
+      MATH_PRECISION = await contract.methods.MATH_PRECISION().call();
+      ERC20_INITIAL_SUPPLY = await contract.methods.ERC20_INITIAL_SUPPLY().call();
+      ERC20_INITIAL_POOL_SHARE = await contract.methods.ERC20_INITIAL_POOL_SHARE().call();
+    });
 
-  //     // Check balances
-  //     totalSupply.should.be.bignumber.equal(ERC20_INITIAL_SUPPLY);
-  //     poolBalance.should.be.bignumber.equal(1e14);
+    it('Should OK getBondedERC20()', async function() {
+      const addr = await contract.methods.getBondedERC20(tokenId).call();
+      bondedToken = BondedERC20.at(addr);
+    });
 
-  //     // Check tokens reveived if total supply is sold
-  //     valueToReceive.should.be.bignumber.equal(1e14);
-  //   });
+    it('Should OK totalSupply()', async function() {
+      const totalSupply = await bondedToken.methods.totalSupply().call();
+      totalSupply.should.be.equal(ERC20_INITIAL_SUPPLY);
+    });
+
+    it('Should OK poolBalance()', async function() {
+      const expected = toBN(cardValue)
+        .mul( toBN(ERC20_INITIAL_POOL_SHARE) )
+        .div( toBN(MATH_PRECISION) );
+
+      const poolBalance = await bondedToken.methods.poolBalance().call();
+      poolBalance.should.be.equal(expected.toString());
+    });
+
   });
 
-  describe('Tests BondedERC20s (buy/sell)', function() {
+  describe('Test BondedERC20s buy / sell', function() {
 
-  //   const tokenId = 1000;
-  //   const txAmount = toWei('1');
+    const tokenId = 1000;
+    const txAmount = toWei('1');
 
-  //   const nullAddress = '0x0000000000000000000000000000000000000000';
+    let bondedToken = null;
 
-  //   // limits for used gas
-  //   const BuyGasLimit = 135000;
-  //   const SellGasLimit = 90000;
-  //   const BuyGasLimitRecurrent = 82000;
+    let MATH_PRECISION = 0;
+    let GAME_INVESTMENT_FEE = 0;
+    let OWNER_INVESTMENT_FEE = 0;
 
-  //   before(async function() {
-  //     const mathPrecision = await contract.MATH_PRECISION();
-  //     const gameTxFees = await contract.GAME_INVESTMENT_FEE();
-  //     const ownerTxFees = await contract.OWNER_INVESTMENT_FEE();
+    before(async function() {
 
-  //     // Based on current contract params, calculate net txValue.
-  //     this.txFees = gameTxFees.add(ownerTxFees).div(mathPrecision);
-  //   });
+      /// Mint TS for buyers.
+      await Promise.all([
+        tsToken.methods.mint(buyer1, txAmount).send(),
+        tsToken.methods.mint(buyer2, txAmount).send(),
+        tsToken.methods.mint(buyer3, txAmount).send(),
+      ]);
 
-  //   it('Should FAIL send direct funds the contract', async function() {
-  //     await assertRevert(
-  //       ethSendTransaction({ to: contract.address, from: someone, value: txAmount })
-  //     );
-  //   })
+      /// Get buy Tx Fees
+      [ MATH_PRECISION, GAME_INVESTMENT_FEE, OWNER_INVESTMENT_FEE ] = await Promise.all([
+        contract.methods.MATH_PRECISION().call(),
+        contract.methods.GAME_INVESTMENT_FEE().call(),
+        contract.methods.OWNER_INVESTMENT_FEE().call()
+      ]);
 
-  //   it(`Should OK estimateTokens()`, async function() {
-  //     await contract.estimateTokens(tokenId, txAmount).call();
-  //   })
+      // Get BondedERC20
+      const addr = await contract.methods.getBondedERC20(tokenId).call();
+      bondedToken = BondedERC20.at(addr);
+    });
 
-  //   it(`Should OK buyShares()`, async function() {
+    it('Should FAIL :: send eth to contract', async function() {
+      await assertRevert(
+        ZWeb3.sendTransaction({
+          to: contract.address,
+          from: someone,
+          value: txAmount
+        })
+      );
+    })
+
+    it(`Should OK buyShares()`, async function() {
+
+      /// Allow Buyer1 TS balance use from Card contract
+      await tsToken.methods.approve(contract.address, txAmount).send({
+        from: buyer1
+      });
+
+      const prevBalance = await bondedToken.methods.balanceOf(buyer1).call();
+      const tsPrevBalance = await tsToken.methods.balanceOf(buyer1).call();
+
+      const tokensToMint = await contract.methods.estimateTokens(tokenId, txAmount).call();
+
+      console.log('prevBalance:', prevBalance);
+      console.log('tsPrevBalance:', tsPrevBalance);
+
+      console.log('tokensToMint:', tokensToMint);
+
+      const tx = await contract.methods.buyShares(tokenId, txAmount).send({
+        from: buyer1,
+        gas: 4000000
+      });
+
+      console.log('tx ->', tx);
+
+      const postBalance = await bondedToken.methods.balanceOf(buyer1).call();
+      const tsPostBalance = await tsToken.methods.balanceOf(buyer1).call();
+
+      console.log('tsPostBalance:', tsPostBalance);
+      console.log('postBalance:', postBalance);
+
+    });
+
   //     const gasPrice = 26e9;
 
   //     // Values we'll check after buy op.
@@ -599,9 +690,5 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
   //   });
 
   });
-
-  // it(`Collections tests`, function() {
-  //   collectionsTest(contract, owner, aWallet, someone, anotherone, buyer1, buyer2, buyer3);
-  // });
 
 });

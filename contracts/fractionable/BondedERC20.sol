@@ -50,56 +50,56 @@ contract BondedERC20 is ERC20 {
     /**
      * @dev Issues an amount of tokens quivalent to a value reserve.
      *  Can only be called by the owner of the contract
-     * @param to beneficiary address of the tokens
-     * @param amount of tokens to mint
-     * @param value value in reserve of the minted tokens
+     * @param _to beneficiary address of the tokens
+     * @param _amount of tokens to mint
+     * @param _value value in reserve of the minted tokens
      */
-    function mint(address to, uint256 amount, uint256 value) public onlyOwner {
-        _mint(to, amount);
+    function mint(address _to, uint256 _amount, uint256 _value) public onlyOwner {
+        super._mint(_to, _amount);
 
         /// update reserve balance
-        poolBalance = poolBalance.add(value);
+        poolBalance = poolBalance.add(_value);
     }
 
     /**
      * @dev Burns an amount of tokens quivalent to a value reserve.
      *  Can only be called by the owner of the contract
-     * @param burner address
-     * @param amount of tokens to burn
-     * @param value value in reserve of the burned tokens
+     * @param _burner address
+     * @param _amount of tokens to burn
+     * @param _value value in reserve of the burned tokens
      */
-    function burn(address burner, uint256 amount, uint256 value) public onlyOwner {
-        _burn(burner, amount);
+    function burn(address _burner, uint256 _amount, uint256 _value) public onlyOwner {
+        super._burn(_burner, _amount);
 
         /// update reserve balance
-        poolBalance = poolBalance.sub(value);
+        poolBalance = poolBalance.sub(_value);
     }
 
     /**
      * @dev Transfer tokens from one address to another
-     * @param from address The address which you want to send tokens from
-     * @param to address The address which you want to transfer to
-     * @param value uint256 the amount of tokens to be transferred
+     * @param _from address The address which you want to send tokens from
+     * @param _to address The address which you want to transfer to
+     * @param _value uint256 the amount of tokens to be transferred
      */
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        super.transferFrom(from, to, value);
+    function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
+        super.transferFrom(_from, _to, _value);
 
         // Notify owner NFT transfer.
-        owner.bondedERC20Transfer(tokenId, from, to, value);
+        owner.bondedERC20Transfer(tokenId, _from, _to, _value);
 
         return true;
     }
 
     /**
      * @dev transfer token for a specified address
-     * @param to The address to transfer to.
-     * @param value The amount to be transferred.
+     * @param _to The address to transfer to.
+     * @param _value The amount to be transferred.
      */
-    function transfer(address to, uint256 value) public returns (bool) {
-        super.transfer(to, value);
+    function transfer(address _to, uint256 _value) public returns (bool) {
+        super.transfer(_to, _value);
 
         /// Notify owner NFT transfer.
-        owner.bondedERC20Transfer(tokenId, msg.sender, to, value);
+        owner.bondedERC20Transfer(tokenId, msg.sender, _to, _value);
 
         return true;
     }

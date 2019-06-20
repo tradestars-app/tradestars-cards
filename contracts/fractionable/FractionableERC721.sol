@@ -41,6 +41,14 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     }
 
     /**
+     * Get bonded ERC-20 contract address for a provided tokenId
+     * @param _tokenId NFT token id
+     */
+    function getBondedERC20(uint256 _tokenId) public view returns (BondedERC20) {
+        return fungiblesMap[_tokenId];
+    }
+
+    /**
      * @dev Overrides the ERC721 function. Returns baseUri + tokenUri.
      * @param _tokenId provided tokenId
      */
@@ -62,13 +70,8 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     {
         require(BondedERC20(msg.sender) == fungiblesMap[_tokenId], "Invalid tokenId");
 
-        /// Log ERC20 transfer on this contract.
-        emit TransferBondedERC20(
-            _tokenId,
-            _from,
-            _to,
-            _amount
-        );
+        /// Log BondedERC20 transfer on this contract.
+        emit TransferBondedERC20(_tokenId, _from, _to, _amount, 0);
     }
 
     /**
@@ -102,7 +105,7 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
      * @param _tokenId NFT token id.
      * @param _beneficiary beneficiary address of the minted ERC20 tokens.
      * @param _amount ERC20 tokens to mint.
-     * @param _value in wei corresponding to the ERC20 tokens to mint.
+     * @param _value in wei, expresed in utility tokens, equivalent to the BondedERC20 tokens to mint.
      */
     function _mintBondedERC20(
         uint256 _tokenId,
@@ -112,14 +115,13 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     )
         internal
     {
-        _getFungible(_tokenId).mint(
+        getBondedERC20(_tokenId).mint(
             _beneficiary,
             _amount,
             _value
         );
 
-        emit MintBondedERC20(_tokenId, _beneficiary, _value, _amount);
-        emit TransferBondedERC20(_tokenId, address(0), _beneficiary, _amount);
+        emit TransferBondedERC20(_tokenId, address(0), _beneficiary, _amount, _value);
     }
 
     /**
@@ -127,7 +129,7 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
      * @param _tokenId NFT token id.
      * @param _burner address of the tokens holder.
      * @param _amount ERC20 tokens to burn.
-     * @param _value in wei corresponding to the ERC20 tokens to burn.
+     * @param _value in wei, expresed in utility tokens, corresponding to the BondedERC20 tokens to burn.
      */
     function _burnBondedERC20(
         uint256 _tokenId,
@@ -137,18 +139,18 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     )
         internal
     {
-        _getFungible(_tokenId).burn(
+        getBondedERC20(_tokenId).burn(
             _burner,
             _amount,
             _value
         );
 
-        emit BurnBondedERC20(_tokenId, _burner, _value, _amount);
-        emit TransferBondedERC20(_tokenId, _burner, address(0), _amount);
+        emit TransferBondedERC20(_tokenId, _burner, address(0), _amount, _value);
     }
 
     /**
-     * @dev Estimate amount of BondedERC20 you would get for an wei investment.
+     * @dev Estimates amount of BondedERC20 tokens you would get
+     *  from investing a value expresed in utility tokens.
      * @param _tokenId NFT token id.
      * @param _value in wei estimate how many BondedERC20 tokens will get
      */
@@ -158,7 +160,7 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     )
         internal view returns (uint256)
     {
-        BondedERC20 token_ = _getFungible(_tokenId);
+        BondedERC20 token_ = getBondedERC20(_tokenId);
 
         uint256 amount = bondedHelper.calculatePurchaseReturn(
             token_.totalSupply(),
@@ -171,9 +173,10 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     }
 
     /**
-     * @dev Estimate value in wei you would get for burning BondedERC20.
+     * @dev Estimates value, expressed in utility tokens, you would get
+     *  from selling an amount of BondedERC20 tokens.
      * @param _tokenId NFT token id.
-     * @param _amount of BondedERC20 tokens to estimate value in wei in return.
+     * @param _amount in wei of BondedERC20 tokens to estimate value in return.
      */
     function _estimateBondedERC20Value(
         uint256 _tokenId,
@@ -181,7 +184,7 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
     )
         internal view returns (uint256)
     {
-        BondedERC20 token_ = _getFungible(_tokenId);
+        BondedERC20 token_ = getBondedERC20(_tokenId);
 
         require(_amount <= token_.totalSupply(), "amount is > than contract total supply");
 
@@ -193,14 +196,6 @@ contract FractionableERC721 is ERC721Full, IBondedERC20Transfer, IFractionableER
         );
 
         return value;
-    }
-
-    /**
-     * Get fungible token address for a provided tokenId
-     * @param _tokenId NFT token id
-     */
-    function _getFungible(uint256 _tokenId) internal view returns (BondedERC20) {
-        return fungiblesMap[_tokenId];
     }
 
     /**

@@ -4,19 +4,6 @@ pragma solidity ^0.5.0;
 // available when working from truffle console.
 import "@gnosis.pm/mock-contract/contracts/MockContract.sol";
 
-/// Create Mock ERC20 for test
-import "openzeppelin-eth/contracts/token/ERC20/ERC20.sol";
-
-contract ERC20Mock is ERC20 {
-    function mint(address to, uint256 amount) public {
-        super._mint(to, amount);
-    }
-
-    function burnFrom(address account, uint256 value) public {
-        super._burnFrom(account, value);
-    }
-}
-
 /// Create Mock KyberProxy for test
 import "./dex/IKyberNetworkProxy.sol";
 
@@ -48,5 +35,18 @@ contract KyberMock is IKyberNetworkProxy {
         _destToken.transfer(_destAddress, ret);
 
         return ret;
+    }
+}
+
+/// Create Mock ERC20 for test
+import "openzeppelin-eth/contracts/token/ERC20/ERC20.sol";
+
+contract ERC20Mock is ERC20 {
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+
+    function burnFrom(address account, uint256 value) public {
+        _burnFrom(account, value);
     }
 }
