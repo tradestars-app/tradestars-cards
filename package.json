@@ -1,7 +1,7 @@
 {
-  "name": "tradestars-contracts",
+  "name": "tradestars-cards",
   "version": "1.0.0",
-  "description": "Contracts for TradeStars.app",
+  "description": "Cards' contracts for TradeStars",
   "main": "truffle-config.js",
   "directories": {
     "test": "test"
@@ -21,8 +21,8 @@
     "openzeppelin-eth": "^2.2.0",
     "truffle-hdwallet-provider": "^1.0.10",
     "web3-utils": "^1.0.0-beta.55",
-    "zos": "^2.2.3",
-    "zos-lib": "^2.2.3"
+    "zos": "^2.3.0",
+    "zos-lib": "^2.3.0"
   },
   "scripts": {
     "test": "truffle test --network local",
@@ -34,12 +34,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:chentschel/tradestars-contracts.git"
+    "url": "git@github.com:tradestars-app/tradestars-cards.git"
   },
   "author": "Christian Hentschel",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/chentschel/tradestars-contracts/issues"
+    "url": "https://github.com/tradestars-app/tradestars-cards/issues"
   },
-  "homepage": "https://github.com/chentschel/tradestars-contracts#readme"
+  "homepage": "https://github.com/tradestars-app/tradestars-cards#readme"
 }

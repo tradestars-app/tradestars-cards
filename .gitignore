@@ -6,6 +6,8 @@ build
 
 # ZeppelinOS local artifacts
 zos.local.json
+zos.dev-*.json
+.zos.session
 
 # Deployment configuration
 .env
@@ -13,3 +15,4 @@ zos.local.json
 # Other
 .DS_Store
 .idea
+.zos.session
