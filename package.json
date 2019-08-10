@@ -17,16 +17,17 @@
     "chai-as-promised": "^7.1.1",
     "chai-bignumber": "^3.0.0",
     "dotenv": "^8.0.0",
-    "husky": "^2.4.1",
+    "husky": "^2.7.0",
     "openzeppelin-eth": "^2.2.0",
-    "truffle-hdwallet-provider": "^1.0.10",
-    "web3-utils": "^1.0.0-beta.55",
-    "zos": "^2.3.0",
-    "zos-lib": "^2.3.0"
+    "truffle": "^5.0.30",
+    "truffle-hdwallet-provider": "^1.0.15",
+    "web3-utils": "^1.2.0",
+    "zos": "^2.4.2",
+    "zos-lib": "^2.4.2"
   },
   "scripts": {
     "compile": "rm -rf build && truffle compile",
-    "test": "npm run compile && truffle test",
+    "test": "npm run compile && truffle test --network local",
     "lint:sol": "solium -d contracts",
     "lint:sol:fix": "solium -d contracts --fix",
     "copy-artifacts": "bash bin/copy-artifacts.sh"

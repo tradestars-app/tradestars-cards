@@ -204,6 +204,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
   });
 
   describe('Tests Card Create', function() {
+
     async function createCard(cardArgs, msgSigner, msgSender) {
 
       const msgHash = createHash(cardArgs);
@@ -219,7 +220,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         signature
       ).send({
         from: msgSender,
-        gas: 4000000,
+        gas: 6721975,
         gasPrice: toWei('10', 'gwei')
       });
     }
@@ -241,7 +242,12 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const cardArgs = createCardArgs(tokenId);
 
       /// BUG: can't use await. Promise returns unresolved and hangs test.
-      createCard(cardArgs, admin, someone).then(async (rcpt) => {
+      // const rcpt = await createCard(cardArgs, admin, someone);
+      // console.log(rcpt);
+
+      createCard(cardArgs, admin, someone).then(async (rctp) => {
+        console.log(rcpt);
+
         const uri = await contract.methods.tokenURI(tokenId).call();
         uri.should.be.eq(`https://api.tradestars.app/cards/${tokenId}`);
       });

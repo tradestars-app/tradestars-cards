@@ -1,9 +1,8 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.8;
 
 import "./IKyberNetworkProxy.sol";
 import "../utils/Administrable.sol";
 
-import "openzeppelin-eth/contracts/math/SafeMath.sol";
 import "openzeppelin-eth/contracts/token/ERC20/SafeERC20.sol";
 
 /**
@@ -13,7 +12,6 @@ import "openzeppelin-eth/contracts/token/ERC20/SafeERC20.sol";
 contract KyberConverter is Administrable {
 
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
 
     uint256 private constant UINT256_MAX = ~uint256(0);
 
@@ -47,6 +45,22 @@ contract KyberConverter is Administrable {
     }
 
     /**
+     * @dev Use kyber proxy to get expected ERC20 token conversion.
+     * @param _srcToken ERC20 source token registry
+     * @param _destToken ERC20 destination token registry
+     * @param _srcAmount source token amount to swap
+     */
+    function _getExpectedRate(
+        IERC20 _srcToken,
+        IERC20 _destToken,
+        uint256 _srcAmount
+    )
+        internal view returns (uint expectedRate, uint slippageRate)
+    {
+        return kyber.getExpectedRate(_srcToken, _destToken, _srcAmount);
+    }
+
+    /**
      * @dev Use kyber proxy to swap ERC20 tokens.
      * @param _srcToken ERC20 source token registry
      * @param _destToken ERC20 destination token registry
@@ -63,7 +77,7 @@ contract KyberConverter is Administrable {
         uint256 _minConversionRate,
         address _dstAddress
     )
-        internal
+        internal returns (uint retAmount)
     {
         /// Transfer tokens to be converted from msg.sender to this contract
         _srcToken.safeTransferFrom(msg.sender, address(this), _srcAmount);
@@ -74,7 +88,7 @@ contract KyberConverter is Administrable {
 
         /// Trade _srcAmount from _srcToken to _destToken
         /// If _destAmount is set to 0, we use UINT256_MAX so all source tokens gets converted.
-        kyber.trade(
+        retAmount = kyber.trade.value(msg.value)(
             _srcToken,
             _srcAmount,
             _destToken,

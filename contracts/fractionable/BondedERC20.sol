@@ -1,5 +1,6 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.8;
 
+/// This is not upgradable.
 import "openzeppelin-eth/contracts/token/ERC20/ERC20.sol";
 import "./IBondedERC20Transfer.sol";
 
@@ -55,7 +56,7 @@ contract BondedERC20 is ERC20 {
      * @param _value value in reserve of the minted tokens
      */
     function mint(address _to, uint256 _amount, uint256 _value) public onlyOwner {
-        super._mint(_to, _amount);
+        _mint(_to, _amount);
 
         /// update reserve balance
         poolBalance = poolBalance.add(_value);
@@ -69,7 +70,7 @@ contract BondedERC20 is ERC20 {
      * @param _value value in reserve of the burned tokens
      */
     function burn(address _burner, uint256 _amount, uint256 _value) public onlyOwner {
-        super._burn(_burner, _amount);
+        _burn(_burner, _amount);
 
         /// update reserve balance
         poolBalance = poolBalance.sub(_value);

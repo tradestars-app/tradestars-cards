@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.8;
 
 interface IFractionableERC721 {
 
@@ -10,8 +10,28 @@ interface IFractionableERC721 {
         uint256 value
     );
 
-    function buyShares(uint256 _tokenId, uint256 _value) external;
-    function sellShares(uint256 _tokenId, uint256 _amount) external;
-    function estimateValue(uint256 _tokenId, uint256 _amount) external view returns (uint256);
-    function estimateTokens(uint256 _tokenId, uint256 _value) external view returns (uint256);
+    function swap(uint256 _tokenId, uint256 _amount, uint256 _destTokenId) external;
+    function liquidate(uint256 _tokenId, uint256 _liquidationAmount, address _paymentToken) external;
+    function purchase(uint256 _tokenId, address _paymentToken, uint256 _paymentAmount) external payable;
+
+    function estimateSwap(
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _destTokenId
+    )
+        external view returns (uint expectedRate, uint slippageRate);
+
+    function estimatePurchase(
+        uint256 _tokenId,
+        address _paymentToken,
+        uint256 _paymentAmount
+    )
+        external view returns (uint expectedRate, uint slippageRate);
+
+    function estimateLiquidate(
+        uint256 _tokenId,
+        uint256 _liquidationAmount,
+        address _paymentToken
+    )
+        external view returns (uint expectedRate, uint slippageRate);
 }

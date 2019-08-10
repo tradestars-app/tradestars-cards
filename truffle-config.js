@@ -14,7 +14,7 @@ module.exports = {
       host: 'localhost',
       port: 9545,
       gas: 6721975,
-      gasPrice: 5e9,
+      gasPrice: 10e9,
       network_id: '*',
       websockets: true
     },
@@ -23,7 +23,7 @@ module.exports = {
         return new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`)
       },
       gas: 6721975,
-      gasPrice: 5e9,
+      gasPrice: 10e9,
       network_id: 3
 
     },
@@ -32,7 +32,7 @@ module.exports = {
         return new HDWalletProvider(mnemonic, `https://mainnet.infura.io/v3/${infuraKey}`)
       },
       gas: 5000000,
-      gasPrice: 5e9,
+      gasPrice: 10e9,
       network_id: 1
     }
   },
