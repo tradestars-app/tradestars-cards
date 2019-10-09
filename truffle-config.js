@@ -18,19 +18,19 @@ module.exports = {
       provider: () => new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`),
       gas: 5000000,
       gasPrice: 5e9,
-      network_id: 3
+      network_id: '3'
     },
     mainnet: {
       provider: () => new HDWalletProvider(mnemonic, `https://mainnet.infura.io/v3/${infuraKey}`),
       gas: 5000000,
       gasPrice: 5e9,
-      network_id: 1
+      network_id: '1'
     },
     maticTestnet: {
       provider: () => new HDWalletProvider(mnemonic, `https://testnet2.matic.network`),
       gas: 5000000,
       gasPrice: 0,
-      network_id: '3',
+      network_id: '*',
       confirmations: 2
     }
   },
