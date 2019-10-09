@@ -1,9 +1,6 @@
-require('babel-register');
-require('babel-polyfill');
-
 require('dotenv').config();
 
-const HDWalletProvider = require('truffle-hdwallet-provider');
+const HDWalletProvider = require('@truffle/hdwallet-provider');
 
 const mnemonic = process.env.MNEMONIC;
 const infuraKey = process.env.INFURA_API_KEY;
@@ -12,28 +9,29 @@ module.exports = {
   networks: {
     local: {
       host: 'localhost',
-      port: 9545,
-      gas: 6721975,
-      gasPrice: 10e9,
-      network_id: '*',
-      websockets: true
+      port: 8545,
+      gas: 5000000,
+      gasPrice: 5e9,
+      network_id: '*'
     },
     ropsten: {
-      provider: function() {
-        return new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`)
-      },
-      gas: 6721975,
-      gasPrice: 10e9,
+      provider: () => new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`),
+      gas: 5000000,
+      gasPrice: 5e9,
       network_id: 3
-
     },
     mainnet: {
-      provider: function() {
-        return new HDWalletProvider(mnemonic, `https://mainnet.infura.io/v3/${infuraKey}`)
-      },
+      provider: () => new HDWalletProvider(mnemonic, `https://mainnet.infura.io/v3/${infuraKey}`),
       gas: 5000000,
-      gasPrice: 10e9,
+      gasPrice: 5e9,
       network_id: 1
+    },
+    maticTestnet: {
+      provider: () => new HDWalletProvider(mnemonic, `https://testnet2.matic.network`),
+      gas: 5000000,
+      gasPrice: 0,
+      network_id: '3',
+      confirmations: 2
     }
   },
   compilers: {

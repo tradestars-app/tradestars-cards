@@ -4,10 +4,9 @@ node_modules
 # Truffle artifacts
 build
 
-# ZeppelinOS local artifacts
-zos.local.json
-zos.dev-*.json
-.zos.session
+# OpenZeppelin SDK
+.openzeppelin/dev-*.json
+.openzeppelin/.session
 
 # Deployment configuration
 .env
@@ -15,4 +14,3 @@ zos.dev-*.json
 # Other
 .DS_Store
 .idea
-.zos.session

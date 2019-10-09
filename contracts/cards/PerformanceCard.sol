@@ -1,16 +1,34 @@
 pragma solidity ^0.5.8;
 
-import "../fractionable/FractionableERC721.sol";
+import "./ICard.sol";
+
+import "../lib/ERC20Manager.sol";
+
 import "../utils/Administrable.sol";
 import "../utils/GasPriceLimited.sol";
-import "../dex/KyberConverter.sol";
 
-import "openzeppelin-eth/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-eth/contracts/token/ERC20/ERC20Burnable.sol";
-import "openzeppelin-eth/contracts/token/ERC20/SafeERC20.sol";
+import "../dex/ITConverter.sol";
+import "../fractionable/IFractionableERC721.sol";
 
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/SafeERC20.sol";
 
-contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, GasPriceLimited {
+/// Simple ERC721 interface
+
+interface IERC721Simple {
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+}
+
+/// Simple ERC20 Burnable interface
+
+interface IBurnableERC20 {
+    function burn(uint256 amount) external;
+    function burnFrom(address account, uint256 amount) external;
+}
+
+/// Main Contract
+
+contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
@@ -31,50 +49,48 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
     /// TS Token
     IERC20 private tsToken;
 
-    /// Reserve Token. (DAI)
+    /// Reserve Token. (USDT)
     IERC20 private reserveToken;
+
+    /// Converter
+    ITConverter private tConverter;
+
+    /// Converter
+    IFractionableERC721 private nftRegistry;
 
     /// Mapping for player scores
     mapping(uint256 => uint32) private cardScoresMap;
 
     /**
      * @dev Initializer for PerformanceCard contract
-     * @param _sender - address owner of the contract
      * @param _tsToken - TS token registry address
      * @param _reserveToken - Reserve registry address
-     * @param _kyberProxy - Kyber proxy address
-     * @param _bondedHelper - Bonded helper contract address
+     * @param _tConverter - TConverter address
+     * @param _nftRegistry - NFT Registry address
      */
      function initialize(
-        address _sender,
         address _tsToken,
-        address _reserveToken,
-        address _kyberProxy,
-        address _bondedHelper
+        address _tConverter,
+        address _nftRegistry,
+        address _reserveToken
     )
         public initializer
     {
-        Administrable.initialize(_sender);
-        KyberConverter.initialize(_kyberProxy, _sender);
+        Administrable.initialize(msg.sender);
 
-        FractionableERC721.initialize(
-            "TradeStars Performance Cards' Registry",
-            "TSCARD",
-            "https://api.tradestars.app/cards/",
-            _bondedHelper
-        );
+        /// Set the NFT Registry
+        nftRegistry = IFractionableERC721(_nftRegistry);
 
         /// Set TS and Reseve Token addresses
         tsToken = IERC20(_tsToken);
         reserveToken = IERC20(_reserveToken);
-    }
 
-    /**
-     * @dev Set registry base token URI
-     * @param _uri string of the base uri in the form: 'schema://domain/path'
-     */
-    function setBaseTokenUri(string calldata _uri) external onlyAdmin {
-        _setBaseTokenUri(_uri);
+        /// Set converter contract.
+        tConverter = ITConverter(_tConverter);
+
+        /// Set aprovals to converter
+        tsToken.safeApprove(address(this), ~uint256(0));
+        reserveToken.safeApprove(address(this), ~uint256(0));
     }
 
     /**
@@ -82,7 +98,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
      * @param _tokenId tokenId to query for
      */
     function getScore(uint256 _tokenId) external view returns (uint256) {
-        require(_exists(_tokenId), "tokenId does not exists");
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exists");
         return cardScoresMap[_tokenId];
     }
 
@@ -92,7 +108,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
      * @param _score scores
      */
     function updateScore(uint256 _tokenId, uint32 _score) public onlyAdmin {
-        require(_exists(_tokenId), "tokenId not created");
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId not created");
         require(_score > 0 && _score <= (100 * MATH_PRECISION), "invalid score");
 
         cardScoresMap[_tokenId] = _score;
@@ -128,16 +144,16 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
      */
     function createCard(
         uint256 _tokenId,
-        string calldata _symbol,
-        string calldata _name,
+        string memory _symbol,
+        string memory _name,
         uint32 _score,
         uint256 _cardValue,
         bytes32 _msgHash,
-        bytes calldata _signature
+        bytes memory _signature
     )
-        external gasPriceLimited
+        public gasPriceLimited
     {
-        require(!_exists(_tokenId), "Card already created");
+        require(nftRegistry.getBondedERC20(_tokenId) == address(0), "Card already created");
 
         /// Check hashed message & admin signature
         bytes32 checkHash = keccak256(
@@ -157,27 +173,21 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         /// Burn the card value minus initial ERC20 balance
         uint256 netTokensToBurn = _cardValue - cardInitialBalance;
 
-        ERC20Burnable(address(tsToken)).burnFrom(
+        IBurnableERC20(address(tsToken)).burnFrom(
             msg.sender,
             netTokensToBurn
         );
 
         /// Swap the initial ERC20 balance in TradeStars tokens for the Stable Reserve
-        // _swapTokens(
-        //     tsToken,
-        //     reserveToken,
-        //     cardInitialBalance,
-        //     0, /// all source tokens converted
-        //     0, /// lowest convertion rate available
-        //     address(this) /// hold reserve tokens here.
-        // );
-
-        /// TODO: REPLACE FOR KYBER
-        tsToken.safeTransferFrom(msg.sender, address(this), cardInitialBalance);
+        tConverter.trade(
+            address(tsToken), address(reserveToken), cardInitialBalance
+        );
 
         /// Create player card and issue the first tokens to the platform owner
         _createCard(_tokenId, msg.sender, _symbol, _name, _score);
-        _mintBondedERC20(_tokenId, owner(), ERC20_INITIAL_SUPPLY, cardInitialBalance);
+
+        /// Mint fractionables
+        nftRegistry.mintBondedERC20(_tokenId, owner(), ERC20_INITIAL_SUPPLY, cardInitialBalance);
     }
 
 
@@ -192,17 +202,17 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         uint256 _amount,
         uint256 _destTokenId
     )
-        external gasPriceLimited
+        public gasPriceLimited
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(_exists(_destTokenId), "destTokenId does not exist");
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+        require(nftRegistry.getBondedERC20(_destTokenId) != address(0), "destTokenId does not exist");
 
-        uint256 reserveAmount = _estimateBondedERC20Value(_tokenId, _amount);
+        uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(_tokenId, _amount);
         uint256 estimatedTokens = _estimateCardBondedTokens(_destTokenId, reserveAmount);
 
-        /// Burn selled tokens.
-        _burnBondedERC20(_tokenId, msg.sender, _amount, reserveAmount);
-        _mintBondedERC20(_destTokenId, msg.sender, estimatedTokens, reserveAmount);
+        /// Burn selled tokens and mint buyed
+        nftRegistry.burnBondedERC20(_tokenId, msg.sender, _amount, reserveAmount);
+        nftRegistry.mintBondedERC20(_destTokenId, msg.sender, estimatedTokens, reserveAmount);
     }
 
     /**
@@ -216,13 +226,13 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         uint256 _amount,
         uint256 _destTokenId
     )
-        external view returns (uint expectedRate, uint slippageRate)
+        public view returns (uint expectedRate, uint slippageRate)
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(_exists(_destTokenId), "destTokenId does not exist");
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+        require(nftRegistry.getBondedERC20(_destTokenId) != address(0), "destTokenId does not exist");
 
         /// get reserve amount from selling _amount of tokenId
-        uint256 reserveAmount = _estimateBondedERC20Value(
+        uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(
             _tokenId,
             _amount
         );
@@ -233,79 +243,52 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
             reserveAmount
         );
 
-        BondedERC20 bondedToken = getBondedERC20(_tokenId);
+        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
         /// Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = estimatedTokens.mul(1e18).div(_amount);
         slippageRate = reserveAmount.mul(1e18).div(
-            bondedToken.poolBalance()
+            ERC20Manager.poolBalance(bondedToken)
         );
     }
 
 
     /**
-     * Purchase of a fractionable ERC721 using TSX or ETH
+     * Purchase of a fractionable ERC721 using TSX
      * @param _tokenId tokenId to purchase
-     * @param _paymentToken address for TSX or ETH
-     * @param _paymentAmount wei payment amount in payment token
+     * @param _paymentAmount wei payment amount in TSX
      */
     function purchase(
         uint256 _tokenId,
-        address _paymentToken,
         uint256 _paymentAmount
     )
-        external payable gasPriceLimited
+        public gasPriceLimited
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(
-            _paymentToken == address(tsToken) || // TSX Token
-            _paymentToken == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), // Ether
-            'payment not supported'
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+
+        _requireBalance(msg.sender, tsToken, _paymentAmount);
+
+        /// Transfer src payment token to this contract.
+        tsToken.safeTransferFrom(
+            msg.sender, address(this), _paymentAmount
         );
 
-        if (_paymentToken == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
-            require(msg.value == _paymentAmount, "invalid msg.value");
-
-        } else {
-            _requireBalance(msg.sender, IERC20(_paymentToken), _paymentAmount);
-
-            /// Transfer src payment token to this contract.
-            IERC20(_paymentToken).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _paymentAmount
-            );
-        }
-
-        ///////////////////////////////////////////////////
-
-        uint256 reserveAmount = _paymentAmount / 2; /// TEMPORARY Kyber bypass
-
-        /// Swap TSX or ETH to reserve
-        // uint256 reserveAmount = _swapTokens(
-        //     _paymentToken,
-        //     reserveToken,
-        //     _paymentAmount,
-        //     0, /// all source tokens converted
-        //     0, /// lowest convertion rate available
-        //     address(this) /// hold reserve tokens here.
-        // );
-
-        ///////////////////////////////////////////////////
+        /// Convert tokens, get reserve
+        uint256 reserveAmount = tConverter.trade(
+            address(tsToken),
+            address(reserveToken),
+            _paymentAmount
+        );
 
         /// Calculate platform fees.
         uint256 pFee = reserveAmount.mul(GAME_INVESTMENT_FEE).div(MATH_PRECISION);
         uint256 iFee = reserveAmount.mul(OWNER_INVESTMENT_FEE).div(MATH_PRECISION);
 
-        /// If payment is not TSX, charge 2x fees.
-        if (_paymentToken != address(tsToken)) {
-            pFee = pFee * 2;
-            iFee = iFee * 2;
-        }
-
         /// Transfer Tx Fees.
         reserveToken.safeTransfer(owner(), pFee);
-        reserveToken.safeTransfer(ownerOf(_tokenId), iFee);
+        reserveToken.safeTransfer(
+            IERC721Simple(address(nftRegistry)).ownerOf(_tokenId), iFee
+        );
 
         /// Get effective amount after tx fees
         uint256 effectiveReserveAmount = reserveAmount.sub(pFee + iFee);
@@ -313,50 +296,37 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         /// The estimated amount of bonded tokens for reserve
         uint256 estimatedTokens = _estimateCardBondedTokens(_tokenId, effectiveReserveAmount);
 
-        /// Issue tokens to msg sender.
-        _mintBondedERC20(_tokenId, msg.sender, estimatedTokens, effectiveReserveAmount);
+        /// Issue fractionables to msg sender.
+        nftRegistry.mintBondedERC20(_tokenId, msg.sender, estimatedTokens, effectiveReserveAmount);
     }
 
 
     /**
-     * Estimate Purchase of a fractionable ERC721 using TSX or ETH
+     * Estimate Purchase of a fractionable ERC721 using TSX
      * @param _tokenId tokenId to purchase
-     * @param _paymentToken address for TSX or ETH
      * @param _paymentAmount wei payment amount in payment token
      */
     function estimatePurchase(
         uint256 _tokenId,
-        address _paymentToken,
         uint256 _paymentAmount
     )
-        external view returns (uint expectedRate, uint slippageRate)
+        public view returns (uint expectedRate, uint slippageRate)
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(
-            _paymentToken == address(tsToken) || // TSX Token
-            _paymentToken == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), // Ether
-            'payment not supported'
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+
+        /// Get rate
+        uint256 exchangeRate = tConverter.getExpectedRate(
+            address(tsToken),
+            address(reserveToken)
         );
 
-        ///////////////////////////////////////////////////
-        uint256 kyberExchangeRate = 1 ether; /// TEMPORARY Kyber bypass
+        /// Divide by CONVERT_PRECISION
+        uint256 reserveAmount = _paymentAmount.mul(exchangeRate).div(1e18);
 
-        /// Use kyber to estimmate conversion from ETH or TSX to reserve.
-        // uint256 (kyberExchangeRate, kyberSlippage) = _getExpectedRate(
-        //     _paymentToken, reserveToken, _paymentAmount
-        // );
-        ///////////////////////////////////////////////////
-
-        uint256 reserveAmount = _paymentAmount.mul(kyberExchangeRate).div(1e18);
-
-        /// If payment is not TS, charge 2x tx fees.
+        /// Calc fees
         uint256 fees = reserveAmount
             .mul(GAME_INVESTMENT_FEE + OWNER_INVESTMENT_FEE)
             .div(MATH_PRECISION);
-
-        if (_paymentToken != address(tsToken)) {
-            fees = fees * 2;
-        }
 
         /// Get effective amount after tx fees
         uint256 effectiveReserveAmount = reserveAmount.sub(fees);
@@ -367,102 +337,75 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
             effectiveReserveAmount
         );
 
-        BondedERC20 bondedToken = getBondedERC20(_tokenId);
+        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
         /// Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = estimatedTokens.mul(1e18).div(_paymentAmount);
         slippageRate = effectiveReserveAmount.mul(1e18).div(
-            bondedToken.poolBalance()
+            ERC20Manager.poolBalance(bondedToken)
         );
     }
 
 
     /**
-     * Liquidate a fractionable ERC721 for TSX or ETH
+     * Liquidate a fractionable ERC721 for TSX
      * @param _tokenId tokenId to liquidate
      * @param _liquidationAmount wei amount for liquidate
-     * @param _paymentToken address for TSX or ETH
      */
     function liquidate(
         uint256 _tokenId,
-        uint256 _liquidationAmount,
-        address _paymentToken
+        uint256 _liquidationAmount
     )
-        external gasPriceLimited
+        public gasPriceLimited
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(
-            _paymentToken == address(tsToken) || // TSX Token
-            _paymentToken == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), // Ether
-            'payment not supported'
-        );
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
 
         /// Estimate reserve for selling _tokenId
-        uint256 reserveAmount = _estimateBondedERC20Value(_tokenId, _liquidationAmount);
-        uint256 pFee = 0;
+        uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(_tokenId, _liquidationAmount);
 
         /// Burn selled tokens.
-        _burnBondedERC20(_tokenId, msg.sender, _liquidationAmount, reserveAmount);
+        nftRegistry.burnBondedERC20(_tokenId, msg.sender, _liquidationAmount, reserveAmount);
 
-        /// If payment is not TSX, charge game fee.
-        if (_paymentToken != address(tsToken)) {
-            pFee = reserveAmount.mul(GAME_INVESTMENT_FEE).div(MATH_PRECISION);
-            reserveToken.safeTransfer(owner(), pFee);
-        }
-
-        ///////////////////////////////////////////////////
-
-        /// Reserve to TSX or ETH and send to liquidator
-        // _swapTokens(
-        //     reserveToken,
-        //     _paymentToken,
-        //     reserveAmount - pFee,
-        //     0,
-        //     0, /// lowest convertion rate available
-        //     msg.sender
-        // );
+        /// Reserve to TSX and send to liquidator
+        tConverter.trade(
+            address(reserveToken), address(tsToken), reserveAmount
+        );
     }
 
 
     /**
-     * Estimate Liquidation of a fractionable ERC721 for TSX or ETH
+     * Estimate Liquidation of a fractionable ERC721 for TSXH
      * @param _tokenId tokenId to liquidate
      * @param _liquidationAmount wei amount for liquidate
-     * @param _paymentToken address for TSX or ETH
      */
     function estimateLiquidate(
         uint256 _tokenId,
-        uint256 _liquidationAmount,
-        address _paymentToken
+        uint256 _liquidationAmount
     )
-        external view returns (uint expectedRate, uint slippageRate)
+        public view returns (uint expectedRate, uint slippageRate)
     {
-        require(_exists(_tokenId), "tokenId does not exist");
-        require(
-            _paymentToken == address(tsToken) || // TSX Token
-            _paymentToken == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), // Ether
-            'payment not supported'
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+
+        uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(
+            _tokenId,
+            _liquidationAmount
         );
 
-        uint256 reserveAmount = _estimateBondedERC20Value(_tokenId, _liquidationAmount);
+        /// Get rate
+        uint256 exchangeRate = tConverter.getExpectedRate(
+            address(reserveToken),
+            address(tsToken)
+        );
 
-        ///////////////////////////////////////////////////
-        uint256 kyberExchangeRate = 2 ether; /// TEMPORARY Kyber bypass
+        /// Divide by CONVERT_PRECISION
+        uint256 estimatedTokens = reserveAmount.mul(exchangeRate).div(1e18);
 
-        /// Use kyber to estimmate conversion from reserve to ETH or TSX.
-        // uint256 (kyberExchangeRate, kyberSlippage) = _getExpectedRate(
-        //     reserveToken, _paymentToken, reserveAmount
-        // );
-
-        ///////////////////////////////////////////////////
-
-        uint256 estimatedTokens = reserveAmount.mul(kyberExchangeRate).div(1e18);
-        BondedERC20 bondedToken = getBondedERC20(_tokenId);
+        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
         /// Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = _liquidationAmount.mul(1e18).div(estimatedTokens);
         slippageRate = reserveAmount.mul(1e18).div(
-            bondedToken.poolBalance()
+            ERC20Manager.poolBalance(bondedToken)
         );
     }
 
@@ -486,7 +429,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
         require(_score > 0, "Score should be > 0");
         require(_score <= MATH_PRECISION, "Score should be <= 10000");
 
-        _mintToken(_tokenId, _beneficiary, _symbol, _name);
+        nftRegistry.mintToken(_tokenId, _beneficiary, _symbol, _name);
 
         // Set metadata info for this token
         cardScoresMap[_tokenId] = _score;
@@ -511,7 +454,7 @@ contract PerformanceCard is FractionableERC721, Administrable, KyberConverter, G
      * @param _value in wei amount.
      */
     function _estimateCardBondedTokens(uint256 _tokenId, uint256 _value) private view returns (uint256) {
-        return _estimateBondedERC20Tokens(
+        return nftRegistry.estimateBondedERC20Tokens(
             _tokenId,
             _value.mul(MATH_PRECISION - cardScoresMap[_tokenId]).div(MATH_PRECISION)
         );

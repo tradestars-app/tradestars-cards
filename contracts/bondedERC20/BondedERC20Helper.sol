@@ -1,6 +1,6 @@
 pragma solidity ^0.5.8;
 
-import "openzeppelin-eth/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 
 /**
  * Based on https://github.com/bancorprotocol/contracts/blob/master/solidity/contracts/converter/BancorFormula.sol

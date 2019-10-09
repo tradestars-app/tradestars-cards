@@ -10,28 +10,42 @@ interface IFractionableERC721 {
         uint256 value
     );
 
-    function swap(uint256 _tokenId, uint256 _amount, uint256 _destTokenId) external;
-    function liquidate(uint256 _tokenId, uint256 _liquidationAmount, address _paymentToken) external;
-    function purchase(uint256 _tokenId, address _paymentToken, uint256 _paymentAmount) external payable;
+    function getBondedERC20(uint256 _tokenId) external view returns(address);
 
-    function estimateSwap(
+    function mintToken(
         uint256 _tokenId,
+        address _beneficiary,
+        string calldata _symbol,
+        string calldata _name
+    )
+        external;
+
+    function mintBondedERC20(
+        uint256 _tokenId,
+        address _beneficiary,
         uint256 _amount,
-        uint256 _destTokenId
+        uint256 _value
     )
-        external view returns (uint expectedRate, uint slippageRate);
+        external;
 
-    function estimatePurchase(
+    function burnBondedERC20(
         uint256 _tokenId,
-        address _paymentToken,
-        uint256 _paymentAmount
+        address _burner,
+        uint256 _amount,
+        uint256 _value
     )
-        external view returns (uint expectedRate, uint slippageRate);
+        external;
 
-    function estimateLiquidate(
+    function estimateBondedERC20Tokens(
         uint256 _tokenId,
-        uint256 _liquidationAmount,
-        address _paymentToken
+        uint256 _value
     )
-        external view returns (uint expectedRate, uint slippageRate);
+        external view returns (uint256);
+
+    function estimateBondedERC20Value(
+        uint256 _tokenId,
+        uint256 _amount
+    )
+        external view returns (uint256);
+
 }

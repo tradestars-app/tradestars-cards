@@ -1,8 +1,8 @@
 pragma solidity ^0.5.8;
 
 /// This is not upgradable.
-import "openzeppelin-eth/contracts/token/ERC20/ERC20.sol";
 import "./IBondedERC20Transfer.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title BondedERC20
@@ -15,6 +15,7 @@ contract BondedERC20 is ERC20 {
 
     string public name;
     string public symbol;
+
     uint8 public decimals = 18;
 
     uint256 public tokenId;
