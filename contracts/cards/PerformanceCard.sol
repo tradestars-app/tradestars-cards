@@ -73,6 +73,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      * @param _reserveToken - Reserve registry address
      */
      function initialize(
+        address _owner,
         address _nftRegistry,
         address _tConverter,
         address _tsToken,
@@ -80,7 +81,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     )
         public initializer
     {
-        Administrable.initialize(msg.sender);
+        Administrable.initialize(_owner);
 
         /// Set the NFT Registry
         nftRegistry = IFractionableERC721(_nftRegistry);
@@ -91,10 +92,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         /// Set converter contract.
         tConverter = ITConverter(_tConverter);
-
-        /// Set aprovals to converter
-        tsToken.safeApprove(address(this), ~uint256(0));
-        reserveToken.safeApprove(address(this), ~uint256(0));
     }
 
     /**
@@ -171,7 +168,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         require(checkHash == _msgHash, "invalid msgHash");
         require(_isValidAdminHash(_msgHash, _signature), "invalid admin signature");
 
-        /// Check the sender has the required TS balance
+        /// Check the sender has the required TSX balance
         _requireBalance(msg.sender, tsToken, _cardValue);
 
         /// Calculate the initial ERC20 balance for this card by getting
@@ -181,7 +178,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Burn the card value minus initial ERC20 balance
         uint256 netTokensToBurn = _cardValue - cardInitialBalance;
 
-        /// Transfer TSX amount to this contract _cardValue using EIP712 signature
+        /// Transfer TSX _cardValue from caller account to this contract using EIP712 signature
         EIP712(tsToken).transferWithSig(
             _orderSignature,
             _cardValue,
@@ -192,10 +189,12 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             address(this)
         );
 
-        /// @dev: This should be a call to burn()
+        /// from the cardValue tokens transferred, burn netTokens
+        ///  TODO: change this for a call to burn() instead
         tsToken.safeTransfer(owner(), netTokensToBurn);
 
         /// Swap the initial ERC20 balance in TradeStars tokens for the Stable Reserve
+        tsToken.safeIncreaseAllowance(address(tConverter), cardInitialBalance);
         tConverter.trade(
             address(tsToken), address(reserveToken), cardInitialBalance
         );
@@ -300,6 +299,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         );
 
         /// Convert tokens, get reserve
+        tsToken.safeIncreaseAllowance(address(tConverter), _paymentAmount);
         uint256 reserveAmount = tConverter.trade(
             address(tsToken),
             address(reserveToken),
@@ -310,7 +310,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 pFee = reserveAmount.mul(GAME_INVESTMENT_FEE).div(MATH_PRECISION);
         uint256 iFee = reserveAmount.mul(OWNER_INVESTMENT_FEE).div(MATH_PRECISION);
 
-        /// Transfer Tx Fees.
+        /// Transfer Tx Fees for platform and owner of the NFT.
         reserveToken.safeTransfer(owner(), pFee);
         reserveToken.safeTransfer(
             IERC721Simple(address(nftRegistry)).ownerOf(_tokenId), iFee
@@ -392,10 +392,14 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Burn selled tokens.
         nftRegistry.burnBondedERC20(_tokenId, msg.sender, _liquidationAmount, reserveAmount);
 
-        /// Reserve to TSX and send to liquidator
-        tConverter.trade(
+        /// Trade reserve to TSX and send to liquidator
+        reserveToken.safeIncreaseAllowance(address(tConverter), reserveAmount);
+
+        uint256 dstAmount = tConverter.trade(
             address(reserveToken), address(tsToken), reserveAmount
         );
+
+        tsToken.safeTransfer(msg.sender, dstAmount);
     }
 
 
@@ -441,7 +445,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      * @param _tokenId - tokenId of new created card
      * @param _symbol - symbol of new created card
      * @param _name - name of new created card
-     * @param _score - score of new created card
+     * @param _score - score of new created card. 0 to 10000
      */
     function _createCard(
         uint256 _tokenId,

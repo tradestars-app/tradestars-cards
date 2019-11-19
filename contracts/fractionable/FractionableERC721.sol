@@ -109,8 +109,8 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
      * Mint BondedERC20 tokens.
      * @param _tokenId NFT token id.
      * @param _beneficiary beneficiary address of the minted ERC20 tokens.
-     * @param _amount ERC20 tokens to mint.
-     * @param _value in wei, expresed in utility tokens, equivalent to the BondedERC20 tokens to mint.
+     * @param _amount ERC20 fractional tokens to mint.
+     * @param _value in wei, expresed in reserve tokens
      */
     function mintBondedERC20(
         uint256 _tokenId,
@@ -134,8 +134,8 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
      * Burn BondedERC20 tokens.
      * @param _tokenId NFT token id.
      * @param _burner address of the tokens holder.
-     * @param _amount ERC20 tokens to burn.
-     * @param _value in wei, expresed in utility tokens, corresponding to the BondedERC20 tokens to burn.
+     * @param _amount ERC20 fractional tokens to burn.
+     * @param _value in wei, expresed in reserve tokens
      */
     function burnBondedERC20(
         uint256 _tokenId,
@@ -157,9 +157,9 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
 
     /**
      * @dev Estimates amount of BondedERC20 tokens you would get
-     *  from investing a value expresed in utility tokens.
+     *  from investing a value expresed in reserve tokens.
      * @param _tokenId NFT token id.
-     * @param _value in wei estimate how many BondedERC20 tokens will get
+     * @param _value wei value in reserve tokens
      */
     function estimateBondedERC20Tokens(
         uint256 _tokenId,
@@ -180,10 +180,10 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
     }
 
     /**
-     * @dev Estimates value, expressed in utility tokens, you would get
+     * @dev Estimates value, expressed in reserve tokens, you would get
      *  from selling an amount of BondedERC20 tokens.
      * @param _tokenId NFT token id.
-     * @param _amount in wei of BondedERC20 tokens to estimate value in return.
+     * @param _amount in wei of BondedERC20 tokens owner would sale
      */
     function estimateBondedERC20Value(
         uint256 _tokenId,

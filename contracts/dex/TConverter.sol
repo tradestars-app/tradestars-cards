@@ -1,14 +1,11 @@
 pragma solidity ^0.5.12;
 
 import "./ITConverter.sol";
-import "../utils/Administrable.sol";
 
+import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/SafeERC20.sol";
 
-/**
- * Note: need to create it with a valid address
- */
-contract TConverter is ITConverter, Administrable {
+contract TConverter is ITConverter, Ownable {
 
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
@@ -16,8 +13,8 @@ contract TConverter is ITConverter, Administrable {
     /// conversion precision
     uint256 public constant CONVERT_PRECISION = 1e18;
 
-    function initialize(address _sender) public initializer {
-        Administrable.initialize(_sender);
+    function initialize(address _owner) public initializer {
+        Ownable.initialize(_owner);
     }
 
     /**
