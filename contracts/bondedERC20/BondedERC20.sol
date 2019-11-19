@@ -1,4 +1,4 @@
-pragma solidity ^0.5.8;
+pragma solidity ^0.5.12;
 
 /// This is not upgradable.
 import "./IBondedERC20Transfer.sol";
@@ -16,7 +16,7 @@ contract BondedERC20 is ERC20 {
     string public name;
     string public symbol;
 
-    uint8 public decimals = 18;
+    uint8 public decimals;
 
     uint256 public tokenId;
 
@@ -45,6 +45,7 @@ contract BondedERC20 is ERC20 {
         name = _name;
         symbol = _symbol;
         tokenId = _tokenId;
+        decimals = 18;
 
         owner = IBondedERC20Transfer(_sender);
     }

@@ -3,7 +3,8 @@
   "contracts": {
     "FractionableERC721": "FractionableERC721",
     "PerformanceCard": "PerformanceCard",
-    "TConverter": "TConverter"
+    "TConverter": "TConverter",
+    "BondedERC20Helper": "BondedERC20Helper"
   },
   "dependencies": {},
   "name": "tradestars-cards",

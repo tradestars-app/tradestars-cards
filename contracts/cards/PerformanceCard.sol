@@ -1,4 +1,4 @@
-pragma solidity ^0.5.8;
+pragma solidity ^0.5.12;
 
 import "./ICard.sol";
 
@@ -13,17 +13,21 @@ import "../fractionable/IFractionableERC721.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/SafeERC20.sol";
 
+/// Simple
+interface EIP712 {
+    function transferWithSig(
+        bytes calldata sig,
+        uint256 tokenIdOrAmount,
+        bytes32 data,
+        uint256 expiration,
+        address to
+    ) external returns (address);
+}
+
 /// Simple ERC721 interface
 
 interface IERC721Simple {
     function ownerOf(uint256 tokenId) external view returns (address owner);
-}
-
-/// Simple ERC20 Burnable interface
-
-interface IBurnableERC20 {
-    function burn(uint256 amount) external;
-    function burnFrom(address account, uint256 amount) external;
 }
 
 /// Main Contract
@@ -63,15 +67,15 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
     /**
      * @dev Initializer for PerformanceCard contract
+     * @param _nftRegistry - NFT Registry address
+     * @param _tConverter - TConverter address
      * @param _tsToken - TS token registry address
      * @param _reserveToken - Reserve registry address
-     * @param _tConverter - TConverter address
-     * @param _nftRegistry - NFT Registry address
      */
      function initialize(
-        address _tsToken,
-        address _tConverter,
         address _nftRegistry,
+        address _tConverter,
+        address _tsToken,
         address _reserveToken
     )
         public initializer
@@ -149,7 +153,11 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint32 _score,
         uint256 _cardValue,
         bytes32 _msgHash,
-        bytes memory _signature
+        bytes memory _signature,
+        /// These are required for EIP712
+        uint256 _expiration,
+        bytes32 _orderId,
+        bytes memory _orderSignature
     )
         public gasPriceLimited
     {
@@ -173,10 +181,19 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Burn the card value minus initial ERC20 balance
         uint256 netTokensToBurn = _cardValue - cardInitialBalance;
 
-        IBurnableERC20(address(tsToken)).burnFrom(
-            msg.sender,
-            netTokensToBurn
+        /// Transfer TSX amount to this contract _cardValue using EIP712 signature
+        EIP712(tsToken).transferWithSig(
+            _orderSignature,
+            _cardValue,
+            keccak256(
+                abi.encodePacked(_orderId, address(tsToken), _cardValue)
+            ),
+            expiration,
+            address(this)
         );
+
+        /// @dev: This should be a call to burn()
+        tsToken.safeTransfer(owner(), netTokensToBurn);
 
         /// Swap the initial ERC20 balance in TradeStars tokens for the Stable Reserve
         tConverter.trade(
@@ -260,7 +277,10 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      */
     function purchase(
         uint256 _tokenId,
-        uint256 _paymentAmount
+        uint256 _paymentAmount,
+        uint256 _expiration,
+        bytes32 _orderId,
+        bytes memory _orderSignature
     )
         public gasPriceLimited
     {
@@ -268,9 +288,15 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         _requireBalance(msg.sender, tsToken, _paymentAmount);
 
-        /// Transfer src payment token to this contract.
-        tsToken.safeTransferFrom(
-            msg.sender, address(this), _paymentAmount
+        /// Transfer TSX amount to this contract using EIP712 signature
+        EIP712(tsToken).transferWithSig(
+            _orderSignature,
+            _paymentAmount,
+            keccak256(
+                abi.encodePacked(_orderId, address(tsToken), _paymentAmount)
+            ),
+            expiration,
+            address(this)
         );
 
         /// Convert tokens, get reserve

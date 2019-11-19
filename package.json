@@ -10,7 +10,7 @@
     "@gnosis.pm/mock-contract": "^3.0.7",
     "@openzeppelin/contracts-ethereum-package": "^2.3.0",
     "@openzeppelin/upgrades": "^2.5.3",
-    "@truffle/hdwallet-provider": "^1.0.17",
+    "@truffle/hdwallet-provider": "^1.0.18",
     "babel-polyfill": "^6.26.0",
     "babel-preset-es2015": "^6.24.1",
     "babel-preset-stage-2": "^6.24.1",

@@ -1,4 +1,4 @@
-pragma solidity ^0.5.8;
+pragma solidity ^0.5.12;
 
 interface IBondedERC20Helper {
     function calculatePurchaseReturn(
