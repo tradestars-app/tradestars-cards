@@ -3,7 +3,7 @@ pragma solidity ^0.5.12;
 interface ICard {
     function swap(uint256 _tokenId, uint256 _amount, uint256 _destTokenId) external;
     function liquidate(uint256 _tokenId, uint256 _liquidationAmount) external;
-    function purchase(uint256 _tokenId, uint256 _paymentAmount) external;
+    // function purchase(uint256 _tokenId, uint256 _paymentAmount) external;
 
     function estimateSwap(
         uint256 _tokenId,

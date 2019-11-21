@@ -2,6 +2,7 @@ pragma solidity ^0.5.12;
 
 import "../bondedERC20/BondedERC20.sol";
 
+/// All methods are internal. Implemented throught a JUMP call on the EVM.
 library ERC20Manager {
 
     function deploy(
@@ -50,6 +51,10 @@ library ERC20Manager {
             _amount,
             _value
         );
+    }
+
+    function setReserveRatio(address _token, uint32 _reserveRatio) internal {
+        return BondedERC20(_token).setReserveRatio(_reserveRatio);
     }
 
     function totalSupply(address _token) internal view returns (uint256) {

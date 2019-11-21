@@ -1,7 +1,7 @@
 {
   "name": "tradestars-cards",
   "version": "1.0.0",
-  "description": "Cards' contracts for TradeStars",
+  "description": "TradeStars main contracts",
   "main": "truffle-config.js",
   "directories": {
     "test": "test"
@@ -9,6 +9,7 @@
   "devDependencies": {
     "@gnosis.pm/mock-contract": "^3.0.7",
     "@openzeppelin/contracts-ethereum-package": "^2.3.0",
+    "@openzeppelin/cli": "^2.6.0",
     "@openzeppelin/upgrades": "^2.5.3",
     "@truffle/hdwallet-provider": "^1.0.18",
     "babel-polyfill": "^6.26.0",
@@ -19,12 +20,16 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "chai-bignumber": "^3.0.0",
+    "crypto": "^1.0.1",
     "dotenv": "^8.0.0",
+    "ethereumjs-util": "^6.2.0",
+    "eth-sig-util": "^2.5.0",
     "husky": "^2.7.0",
-    "truffle": "^5.0.30",
+    "truffle": "^5.1.0",
     "web3-utils": "^1.2.0"
   },
   "scripts": {
+    "debug": "truffle debug --network local",
     "compile": "rm -rf build && truffle compile",
     "test": "npm run compile && truffle test --network local",
     "lint:sol": "solium -d contracts",

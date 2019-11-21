@@ -2,16 +2,15 @@
   "manifestVersion": "2.2",
   "contracts": {
     "FractionableERC721": "FractionableERC721",
+    "BondedERC20Helper": "BondedERC20Helper",
     "PerformanceCard": "PerformanceCard",
-    "TConverter": "TConverter",
-    "BondedERC20Helper": "BondedERC20Helper"
+    "TConverter": "TConverter"
   },
   "dependencies": {},
   "name": "tradestars-cards",
   "version": "1.0.0",
   "compiler": {
-    "manager": "openzeppelin",
-    "solcVersion": "0.5.12",
+    "manager": "truffle",
     "compilerSettings": {
       "optimizer": {
         "enabled": true,

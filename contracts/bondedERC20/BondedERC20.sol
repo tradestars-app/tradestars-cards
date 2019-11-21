@@ -1,6 +1,6 @@
 pragma solidity ^0.5.12;
 
-/// This is not upgradable.
+/// This Contract is not upgradable.
 import "./IBondedERC20Transfer.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
 
@@ -11,7 +11,7 @@ contract BondedERC20 is ERC20 {
 
     using SafeMath for uint256;
 
-    IBondedERC20Transfer public owner;
+    address public owner;
 
     string public name;
     string public symbol;
@@ -24,13 +24,13 @@ contract BondedERC20 is ERC20 {
     uint256 public poolBalance;
 
     /// Represented in PPM 1-1000000
-    uint32 public reserveRatio = 333333;
+    uint32 public reserveRatio;
 
     /**
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(msg.sender == address(owner), "msg.sender is not owner");
+        require(msg.sender == owner, "msg.sender is not owner");
         _;
     }
 
@@ -38,7 +38,7 @@ contract BondedERC20 is ERC20 {
         string memory _name,
         string memory _symbol,
         uint256 _tokenId,
-        address _sender
+        address _owner
     )
         public
     {
@@ -47,7 +47,20 @@ contract BondedERC20 is ERC20 {
         tokenId = _tokenId;
         decimals = 18;
 
-        owner = IBondedERC20Transfer(_sender);
+        /// sets the reserve ratio for the token
+        reserveRatio = 333333;
+
+        /// sets the owner for this contract
+        owner = _owner;
+    }
+
+    /**
+     * @dev Sets reserve ratio for the token
+     * @param _reserveRatio in PPM 1-1000000
+     */
+    function setReserveRatio(uint32 _reserveRatio) public onlyOwner {
+        require(_reserveRatio > 1 && _reserveRatio <= 1000000, "invalid _reserveRatio");
+        reserveRatio = _reserveRatio;
     }
 
     /**
@@ -88,7 +101,12 @@ contract BondedERC20 is ERC20 {
         super.transferFrom(_from, _to, _value);
 
         // Notify owner NFT transfer.
-        owner.bondedERC20Transfer(tokenId, _from, _to, _value);
+        IBondedERC20Transfer(owner).bondedERC20Transfer(
+            tokenId,
+            _from,
+            _to,
+            _value
+        );
 
         return true;
     }
@@ -102,7 +120,12 @@ contract BondedERC20 is ERC20 {
         super.transfer(_to, _value);
 
         /// Notify owner NFT transfer.
-        owner.bondedERC20Transfer(tokenId, msg.sender, _to, _value);
+        IBondedERC20Transfer(owner).bondedERC20Transfer(
+            tokenId,
+            msg.sender,
+            _to,
+            _value
+        );
 
         return true;
     }

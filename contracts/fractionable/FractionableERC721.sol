@@ -2,17 +2,16 @@ pragma solidity ^0.5.12;
 
 import "./IFractionableERC721.sol";
 
-import "../utils/Administrable.sol";
-
 import "../bondedERC20/IBondedERC20Helper.sol";
 import "../bondedERC20/IBondedERC20Transfer.sol";
 
 import "../lib/Strings.sol";
 import "../lib/ERC20Manager.sol";
 
+import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC721/ERC721Full.sol";
 
-contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, IBondedERC20Transfer {
+contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBondedERC20Transfer {
 
     using Strings for string;
 
@@ -22,18 +21,30 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
     /// Fungible tokens map
     mapping(uint256 => address) private fungiblesMap;
 
+    /// Token Manager allowed address
+    address private tokenManager;
+
     /// Base token URI metadata.
     string public baseTokenUri;
 
+    /**
+     * @dev Throws if called by any account other than the manger.
+     */
+    modifier onlyTokenManager() {
+        require(msg.sender == tokenManager, "msg.sender is not tokenManager");
+        _;
+    }
+
     function initialize(
+        address _owner,
+        address _bondedHelper,
         string memory _name,
         string memory _symbol,
-        string memory _baseUri,
-        address _bondedHelper
+        string memory _baseUri
     )
         public initializer
     {
-        Administrable.initialize(msg.sender);
+        Ownable.initialize(_owner);
 
         ERC721.initialize();
         ERC721Enumerable.initialize();
@@ -46,20 +57,38 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
     }
 
     /**
-     * Get bonded ERC-20 contract address for a provided tokenId
-     * @param _tokenId NFT token id
+     * @dev Sets the token manager of the contract.
+     * @param _manager address
      */
-    function getBondedERC20(uint256 _tokenId) public view returns (address) {
-        return fungiblesMap[_tokenId];
+    function setTokenManager(address _manager) public onlyOwner {
+        tokenManager = _manager;
     }
 
     /**
-     * @dev Overrides the ERC721 function. Returns baseUri + tokenUri.
-     * @param _tokenId provided tokenId
+     * @dev Sets the token manager of the contract.
+     * @param _baseUri for the ERC721 tokens metadata
      */
-    function tokenURI(uint256 _tokenId) public view returns (string memory) {
-        require(_exists(_tokenId), "tokenId does not exists");
-        return Strings.strConcat(baseTokenUri, Strings.uint2str(_tokenId));
+    function setBaseTokenUri(string memory _baseUri) public onlyOwner {
+        _setBaseTokenUri(_baseUri);
+    }
+
+    /**
+     * @dev Sets bondedToken reserveRatio
+     * @param _tokenId address
+     * @param _reserveRatio value
+     */
+    function setBondedTokenReserveRatio(
+        uint256 _tokenId,
+        uint32 _reserveRatio
+    )
+        public onlyOwner
+    {
+        require(fungiblesMap[_tokenId] != address(0), "invalid _tokenId");
+
+        ERC20Manager.setReserveRatio(
+            fungiblesMap[_tokenId],
+            _reserveRatio
+        );
     }
 
     /**
@@ -92,7 +121,7 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         string memory _symbol,
         string memory _name
     )
-        public onlyAdmin
+        public onlyTokenManager
     {
         _mint(_beneficiary, _tokenId);
 
@@ -118,7 +147,7 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         uint256 _amount,
         uint256 _value
     )
-        public onlyAdmin
+        public onlyTokenManager
     {
         ERC20Manager.mint(
             fungiblesMap[_tokenId],
@@ -143,7 +172,7 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         uint256 _amount,
         uint256 _value
     )
-        public onlyAdmin
+        public onlyTokenManager
     {
         ERC20Manager.burn(
             fungiblesMap[_tokenId],
@@ -165,7 +194,7 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         uint256 _tokenId,
         uint256 _value
     )
-        public view onlyAdmin returns (uint256)
+        public view onlyTokenManager returns (uint256)
     {
         address token_ = fungiblesMap[_tokenId];
 
@@ -189,7 +218,7 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         uint256 _tokenId,
         uint256 _amount
     )
-        public view onlyAdmin returns (uint256)
+        public view onlyTokenManager returns (uint256)
     {
         address token_ = fungiblesMap[_tokenId];
 
@@ -203,6 +232,23 @@ contract FractionableERC721 is Administrable, ERC721Full, IFractionableERC721, I
         );
 
         return value;
+    }
+
+    /**
+     * @dev Get bonded ERC-20 contract address for a provided tokenId
+     * @param _tokenId NFT token id
+     */
+    function getBondedERC20(uint256 _tokenId) public view returns (address) {
+        return fungiblesMap[_tokenId];
+    }
+
+    /**
+     * @dev Overrides the ERC721 function. Returns baseUri + tokenUri.
+     * @param _tokenId provided tokenId
+     */
+    function tokenURI(uint256 _tokenId) public view returns (string memory) {
+        require(_exists(_tokenId), "tokenId does not exists");
+        return Strings.strConcat(baseTokenUri, Strings.uint2str(_tokenId));
     }
 
     /**

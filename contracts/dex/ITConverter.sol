@@ -7,7 +7,8 @@ interface ITConverter {
 
     function getExpectedRate(
         address _srcToken,
-        address _destToken
+        address _destToken,
+        uint256 _amount
     )
         external view returns (uint256);
 

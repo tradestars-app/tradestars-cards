@@ -8,6 +8,17 @@ import "@gnosis.pm/mock-contract/contracts/MockContract.sol";
 import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol";
 
 contract ERC20Mock is ERC20 {
+
+    function transferWithSig(
+        bytes memory,
+        uint256 tokenIdOrAmount,
+        bytes32,
+        uint256,
+        address to
+    ) public returns (address) {
+        _mint(to, tokenIdOrAmount);
+    }
+
     function mint(address to, uint256 amount) public {
         _mint(to, amount);
     }

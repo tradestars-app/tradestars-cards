@@ -15,7 +15,8 @@ module.exports = {
       port: 8545,
       gas: 5500000,
       gasPrice: 5e9,
-      network_id: '*'
+      network_id: '*',
+      websockets: true
     },
     ropsten: {
       provider: () => new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/${infuraKey}`),

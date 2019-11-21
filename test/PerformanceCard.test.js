@@ -1,24 +1,32 @@
-import { TestHelper } from 'zos';
-import { assertRevert, Contracts, ZWeb3 } from 'zos-lib';
-import { toWei, soliditySha3, toBN } from 'web3-utils';
+const { TestHelper } = require('@openzeppelin/cli');
+const { Contracts, ZWeb3, assertRevert } = require('@openzeppelin/upgrades');
 
-console.log("web3.version: ", web3.version);
+const { toWei, toBN, soliditySha3 } = require('web3-utils');
+
+/// Used in EIP712
+const ethSign = require('eth-sig-util');
+
+const { toBuffer } = require('ethereumjs-util');
+const { randomBytes } = require('crypto');
+
+const { getOrderTypedData } = require('./eip712utils');
 
 ZWeb3.initialize(web3.currentProvider);
 
 require('chai').should();
 
+const TConverter = Contracts.getFromLocal('TConverter');
 const BondedERC20 = Contracts.getFromLocal('BondedERC20');
 const BondedHelper = Contracts.getFromLocal('BondedERC20Helper');
 const PerformanceCard = Contracts.getFromLocal('PerformanceCard');
+const FractionableERC721 = Contracts.getFromLocal('FractionableERC721');
 
 /// Create a Mock Contract
 const ERC20Mock = Contracts.getFromLocal('ERC20Mock');
-const KyberMock = Contracts.getFromLocal('KyberMock');
 
 /// check events
-function checkAdminEvent(tx, eventName) {
-  tx.events[eventName].event.should.be.eq(eventName)
+function checkEventName(tx, eventName) {
+  tx.events[eventName].event.should.be.eq(eventName);
 }
 
 // Helper functions
@@ -28,7 +36,7 @@ const assertGasLt = async (txHash, expected) => {
   gas.should.be.at.most(parseInt(expected));
 };
 
-const assertGas = async (txHash, expected) => {
+const assertGasEq = async (txHash, expected) => {
   const { gas } = await ZWeb3.getTransaction(txHash);
   gas.should.be.eq(parseInt(expected));
 };
@@ -43,7 +51,7 @@ const assertFrom = async (txHash, expected) => {
   from.should.be.eq(expected);
 };
 
-const createSignature = async  (msgHash, signer) => {
+const createSignature = async (msgHash, signer) => {
   const signature = await web3.eth.sign(msgHash, signer);
 
   // in geth its always 27/28, in ganache its 0/1. Change to 27/28 to prevent
@@ -80,37 +88,63 @@ const createCardArgs = (tokenId) => {
   };
 }
 
-contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buyer2, buyer3, buyer4]) => {
+contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buyer2, buyer3]) => {
 
   let contract;
+
   let tsToken;
   let reserveToken;
-  let kyberProxy;
+
+  let tConverter;
 
   before(async function() {
     const project = await TestHelper();
 
     /// Create Mock ERC20 Contracts
-    tsToken = await ERC20Mock.new({ gas: 4000000 });
-    reserveToken = await ERC20Mock.new({ gas: 4000000 });
+    tsToken = await ERC20Mock.new({ gas: 5000000, from: owner });
+    reserveToken = await ERC20Mock.new({ gas: 5000000, from: owner });
 
-    /// Create Mock kyberProxy
-    kyberProxy = await KyberMock.new({ gas: 4000000 });
+    /// Create and initialize a fractionableERC721
+    const bondedHelper = await BondedHelper.new({ gas: 5000000, from: owner });
+    const fractionableERC721 = await FractionableERC721.new({ gas: 5000000, from: owner });
 
-    /// Create BondedHelper
-    const bondedHelper = await BondedHelper.new({ gas: 4000000 });
+    await fractionableERC721.methods.initialize(
+      "name",
+      "symbol",
+      "baseurl",
+      bondedHelper.address
+    ).send({
+      gas: 5000000,
+      from: owner
+    });
+
+    /// Create TConverter
+    tConverter = await TConverter.new({ gas: 5000000, from: owner });
 
     // Create new PerformanceCard registry
     contract = await project.createProxy(PerformanceCard, {
       initMethod: 'initialize',
       initArgs: [
         owner,
+        fractionableERC721.address,
+        tConverter.address,
         tsToken.address,
         reserveToken.address,
-        kyberProxy.address,
-        bondedHelper.address
       ]
     });
+
+    // initialize converter.
+    await tConverter.methods.initialize(owner).send({
+      gas: 5000000,
+      from: owner
+    });
+
+    // set allowed caller
+    await tConverter.methods.setAllowedCaller(contract.address).send({
+      gas: 5000000,
+      from: owner
+    });
+
   });
 
   describe('Tests Admins Management', function() {
@@ -120,7 +154,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         from: owner
       });
 
-      checkAdminEvent(tx, 'AdminAdded');
+      checkEventName(tx, 'AdminAdded');
 
       const isAdmin = await contract.methods.isAdmin(admin).call();
       isAdmin.should.be.eq(true);
@@ -131,7 +165,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         from: owner
       });
 
-      checkAdminEvent(tx, 'AdminRemoved');
+      checkEventName(tx, 'AdminRemoved');
 
       const isAdmin = await contract.methods.isAdmin(admin).call();
       isAdmin.should.be.eq(false);
@@ -161,7 +195,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
     it(`Should OK renounceAdmin()`, async function() {
       const tx = await contract.methods.renounceAdmin().send({ from: admin });
 
-      checkAdminEvent(tx, 'AdminRemoved');
+      checkEventName(tx, 'AdminRemoved');
 
       const isAdmin = await contract.methods.isAdmin(admin).call();
       isAdmin.should.be.eq(false);
@@ -185,7 +219,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         from: admin
       });
 
-      checkAdminEvent(tx, 'GasPriceLimitChanged');
+      checkEventName(tx, 'GasPriceLimitChanged');
 
       gasLimit = await contract.methods.gasPriceLimit().call();
       gasLimit.should.be.eq(newLimit);
@@ -203,12 +237,31 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
   });
 
-  describe('Tests Card Create', function() {
+  describe('Tests Cards Create', function() {
 
-    async function createCard(cardArgs, msgSigner, msgSender) {
+    async function createCard(cardArgs, adminSigner, msgSender) {
 
-      const msgHash = createHash(cardArgs);
-      const signature = await createSignature(msgHash, msgSigner);
+      const createCardHash = createHash(cardArgs);
+      const adminSignature = await createSignature(createCardHash, adminSigner);
+
+      // EIP712
+      const chainId = await web3.eth.net.getId();
+      const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
+      const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        chainId,
+        orderId,
+        expiration,
+        tsToken.address, /// The token contract address
+        cardArgs['cardValue'],  // tokens amount
+        contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
+      );
+
+      /// PK for someone account (3)
+      const orderSignature = ethSign.signTypedData(
+        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { from: msgSender, data: typedData }
+      );
 
       return contract.methods.createCard(
         cardArgs['tokenId'],
@@ -216,8 +269,11 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         cardArgs['name'],
         cardArgs['score'],
         cardArgs['cardValue'],
-        msgHash,
-        signature
+        createCardHash,
+        adminSignature,
+        expiration,
+        orderId,
+        orderSignature
       ).send({
         from: msgSender,
         gas: 6721975,
@@ -226,31 +282,25 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
     }
 
     before(async function() {
-      const mintAmount = toWei('1000');
+      const mintAmount = toWei('100000');
 
-      await tsToken.methods.mint(someone, mintAmount).send();
-      await reserveToken.methods.mint(kyberProxy.address, mintAmount).send();
+      // Set TConverter Token / Reserve pair
+      await tsToken.methods.mint(tConverter.address, toWei('1000000')).send();
+      await reserveToken.methods.mint(tConverter.address, toWei('12000')).send();
 
-      /// Aprove Card contract to spend up to mintAmount TS
-      await tsToken.methods.approve(contract.address, mintAmount).send({
-        from: someone
-      });
+      // Mint tokens for card creator
+      await tsToken.methods.mint(someone, toWei('100')).send();
     });
 
     it(`Should OK createCard()`, async function() {
       const tokenId = 1000;
       const cardArgs = createCardArgs(tokenId);
 
-      /// BUG: can't use await. Promise returns unresolved and hangs test.
-      // const rcpt = await createCard(cardArgs, admin, someone);
-      // console.log(rcpt);
+      const tx = await createCard(cardArgs, admin, someone);
+      console.log(tx);
 
-      createCard(cardArgs, admin, someone).then(async (rctp) => {
-        console.log(rcpt);
-
-        const uri = await contract.methods.tokenURI(tokenId).call();
-        uri.should.be.eq(`https://api.tradestars.app/cards/${tokenId}`);
-      });
+      const uri = await contract.methods.tokenURI(tokenId).call();
+      uri.should.be.eq(`https://api.tradestars.app/cards/${tokenId}`);
     });
 
     it(`Should FAIL createCard() :: card exists`, async function() {
@@ -416,7 +466,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
       const tx = await contract.methods.buyShares(tokenId, txAmount).send({
         from: buyer1,
-        gas: 4000000
+        gas: 5000000
       });
 
       console.log('tx ->', tx);

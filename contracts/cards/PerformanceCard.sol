@@ -179,13 +179,13 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 netTokensToBurn = _cardValue - cardInitialBalance;
 
         /// Transfer TSX _cardValue from caller account to this contract using EIP712 signature
-        EIP712(tsToken).transferWithSig(
+        EIP712(address(tsToken)).transferWithSig(
             _orderSignature,
             _cardValue,
             keccak256(
                 abi.encodePacked(_orderId, address(tsToken), _cardValue)
             ),
-            expiration,
+            _expiration,
             address(this)
         );
 
@@ -199,7 +199,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             address(tsToken), address(reserveToken), cardInitialBalance
         );
 
-        /// Create player card and issue the first tokens to the platform owner
+        /// Create player card (owner is msg.sender) and issue the first tokens to the platform owner
         _createCard(_tokenId, msg.sender, _symbol, _name, _score);
 
         /// Mint fractionables
@@ -285,16 +285,17 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     {
         require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
 
+        /// Check the sender has the required TSX balance
         _requireBalance(msg.sender, tsToken, _paymentAmount);
 
         /// Transfer TSX amount to this contract using EIP712 signature
-        EIP712(tsToken).transferWithSig(
+        EIP712(address(tsToken)).transferWithSig(
             _orderSignature,
             _paymentAmount,
             keccak256(
                 abi.encodePacked(_orderId, address(tsToken), _paymentAmount)
             ),
-            expiration,
+            _expiration,
             address(this)
         );
 
@@ -343,7 +344,8 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Get rate
         uint256 exchangeRate = tConverter.getExpectedRate(
             address(tsToken),
-            address(reserveToken)
+            address(reserveToken),
+            _paymentAmount
         );
 
         /// Divide by CONVERT_PRECISION
@@ -424,7 +426,8 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Get rate
         uint256 exchangeRate = tConverter.getExpectedRate(
             address(reserveToken),
-            address(tsToken)
+            address(tsToken),
+            reserveAmount
         );
 
         /// Divide by CONVERT_PRECISION
@@ -474,7 +477,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      */
     function _requireBalance(address _sender, IERC20 _token, uint256 _amount) private view {
         require(_token.balanceOf(_sender) >= _amount, "Insufficient funds");
-        require(_token.allowance(_sender, address(this)) >= _amount, "Insufficient allowance");
     }
 
     /**

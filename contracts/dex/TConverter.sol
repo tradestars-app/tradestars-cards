@@ -13,8 +13,19 @@ contract TConverter is ITConverter, Ownable {
     /// conversion precision
     uint256 public constant CONVERT_PRECISION = 1e18;
 
+    /// allowed trader address
+    address private allowedCaller;
+
     function initialize(address _owner) public initializer {
         Ownable.initialize(_owner);
+    }
+
+    /**
+     * @dev Sets the address allowed to trade
+     * @param _caller address allowed to call trade()
+     */
+    function setAllowedCaller(address _caller) public onlyOwner {
+        allowedCaller = _caller;
     }
 
     /**
@@ -24,14 +35,15 @@ contract TConverter is ITConverter, Ownable {
      */
     function getExpectedRate(
         address _srcToken,
-        address _destToken
+        address _destToken,
+        uint256 _amount
     )
         public view returns (uint256)
     {
         uint256 srcBalance = IERC20(_srcToken).balanceOf(address(this));
         uint256 destBalance = IERC20(_destToken).balanceOf(address(this));
 
-        return srcBalance.mul(CONVERT_PRECISION).div(destBalance);
+        return destBalance.mul(CONVERT_PRECISION).div(srcBalance + _amount);
     }
 
     /**
@@ -47,6 +59,8 @@ contract TConverter is ITConverter, Ownable {
     )
         public returns (uint256)
     {
+        require(msg.sender == allowedCaller, "caller is not allowed");
+
         require(
             IERC20(_srcToken).balanceOf(msg.sender) >= _srcAmount,
             "Insufficient src token funds"
@@ -56,11 +70,11 @@ contract TConverter is ITConverter, Ownable {
             "Insufficient src token allowance"
         );
 
-        uint256 rate = getExpectedRate(_srcToken, _destToken);
+        uint256 rate = getExpectedRate(_srcToken, _destToken, _srcAmount);
         uint256 destAmount = _srcAmount.mul(rate).div(CONVERT_PRECISION);
 
         require(
-            IERC20(_srcToken).balanceOf(address(this)) >= destAmount,
+            IERC20(_destToken).balanceOf(address(this)) >= destAmount,
             "Insufficient dst token funds"
         );
 
