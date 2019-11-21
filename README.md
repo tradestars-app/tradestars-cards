@@ -4,13 +4,16 @@
 ## Main Contracts
 
 ### PerformanceCard.sol
-ERC721 registry for Performance Cards.
+Performance Cards manager contract.
 
 ### PerformanceCollection.sol
-ERC721 registry for Performance Collections.
+Performance Collection manager contract
 
 ### BondedERC20.sol
-Tansferable ERC-20 registry. Tokens are created and destroyed by the holding NFT and represents a fraction of it.
+Transferable ERC20 registry. Tokens are created and destroyed by the owner NFT and represents a fraction of it.
+
+### FractionableERC721.sol
+Fractionable ERC721 registry.
 
 ## Dependencies
 - [npm](https://www.npmjs.com/): v6.9.0.
@@ -34,11 +37,11 @@ $ npm install
 Run a local ganache instance as:
 
 ```bash
-$ ganache-cli --port 8545 --deterministic
-$ npm test
+$ ganache-cli -d
+$ npm run test --network local
 ```
 
-Publish the project to a network.
+Publish the project to the network.
 
 ```bash
 npx openzeppelin session --network ropsten
