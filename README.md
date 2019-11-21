@@ -38,7 +38,7 @@ Run a local ganache instance as:
 
 ```bash
 $ ganache-cli -d
-$ npm run test --network local
+$ npm run test
 ```
 
 Publish the project to the network.
