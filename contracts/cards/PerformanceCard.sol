@@ -2,6 +2,7 @@ pragma solidity ^0.5.12;
 
 import "./ICard.sol";
 
+import "../lib/Strings.sol";
 import "../lib/ERC20Manager.sol";
 
 import "../utils/Administrable.sol";
@@ -65,6 +66,10 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     /// Mapping for player scores
     mapping(uint256 => uint32) private cardScoresMap;
 
+    /// Base card URI metadata.
+    string public baseUrlPath;
+
+
     /**
      * @dev Initializer for PerformanceCard contract
      * @param _nftRegistry - NFT Registry address
@@ -92,6 +97,26 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         /// Set converter contract.
         tConverter = ITConverter(_tConverter);
+
+        /// sets the base URL for cards metadata
+        baseUrlPath = "https://api.tradestars.app/cards/";
+    }
+
+    /**
+     * @dev Gets the metadata URL for the card
+     * @param _tokenId to get the URL for
+     */
+    function getCardURL(uint256 _tokenId) public view returns (string memory) {
+        require(nftRegistry.getBondedERC20(_tokenId) != address(0), "tokenId does not exist");
+        return Strings.strConcat(baseUrlPath, Strings.uint2str(_tokenId));
+    }
+
+     /**
+     * @dev Sets the base URL path for cards metadata URLs.
+     * @param _baseUrlPath for the tokens metadata
+     */
+    function setBaseUrlPath(string memory _baseUrlPath) public onlyAdmin {
+        baseUrlPath = _baseUrlPath;
     }
 
     /**
@@ -206,7 +231,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         nftRegistry.mintBondedERC20(_tokenId, owner(), ERC20_INITIAL_SUPPLY, cardInitialBalance);
     }
 
-
     /**
      * Swap two fractionable ERC721 tokens.
      * @param _tokenId tokenId to liquidate
@@ -268,7 +292,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         );
     }
 
-
     /**
      * Purchase of a fractionable ERC721 using TSX
      * @param _tokenId tokenId to purchase
@@ -327,7 +350,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         nftRegistry.mintBondedERC20(_tokenId, msg.sender, estimatedTokens, effectiveReserveAmount);
     }
 
-
     /**
      * Estimate Purchase of a fractionable ERC721 using TSX
      * @param _tokenId tokenId to purchase
@@ -374,7 +396,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         );
     }
 
-
     /**
      * Liquidate a fractionable ERC721 for TSX
      * @param _tokenId tokenId to liquidate
@@ -403,7 +424,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         tsToken.safeTransfer(msg.sender, dstAmount);
     }
-
 
     /**
      * Estimate Liquidation of a fractionable ERC721 for TSXH

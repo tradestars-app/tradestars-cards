@@ -37,8 +37,7 @@ contract('FractionableERC721', ([_, owner, tokenManager, someone]) => {
         owner,
         bondedHelper.address,
         "name",
-        "symbol",
-        "baseurl"
+        "symbol"
       ]
     });
   });
@@ -54,27 +53,6 @@ contract('FractionableERC721', ([_, owner, tokenManager, someone]) => {
     it(`Should FAIL setTokenManager() :: not owner`, async function() {
       await assertRevert(
         contract.methods.setTokenManager(tokenManager).send({
-          from: someone
-        })
-      );
-    });
-
-    it(`Should OK setBaseTokenUri()`, async function() {
-      const newUri = 'https://api.tradestars.app/cards';
-
-      await contract.methods.setBaseTokenUri(newUri).send({
-        from: owner
-      })
-
-      const uri = await contract.methods.baseTokenUri().call();
-      uri.should.be.eq(newUri);
-    });
-
-    it(`Should FAIL setBaseTokenUri() :: not owner`, async function() {
-      const newUri = 'https://api.tradestars.app/cards';
-
-      await assertRevert(
-        contract.methods.setBaseTokenUri(newUri).send({
           from: someone
         })
       );

@@ -13,8 +13,6 @@ import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC721/ERC721Fu
 
 contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBondedERC20Transfer {
 
-    using Strings for string;
-
     /// Helper contract for ERC20 transactions.
     IBondedERC20Helper private bondedHelper;
 
@@ -23,9 +21,6 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
 
     /// Token Manager allowed address
     address private tokenManager;
-
-    /// Base token URI metadata.
-    string public baseTokenUri;
 
     /**
      * @dev Throws if called by any account other than the manger.
@@ -39,8 +34,7 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
         address _owner,
         address _bondedHelper,
         string memory _name,
-        string memory _symbol,
-        string memory _baseUri
+        string memory _symbol
     )
         public initializer
     {
@@ -49,8 +43,6 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
         ERC721.initialize();
         ERC721Enumerable.initialize();
         ERC721Metadata.initialize(_name, _symbol);
-
-        _setBaseTokenUri(_baseUri);
 
         // Sets address for helper functions
         bondedHelper = IBondedERC20Helper(_bondedHelper);
@@ -62,14 +54,6 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
      */
     function setTokenManager(address _manager) public onlyOwner {
         tokenManager = _manager;
-    }
-
-    /**
-     * @dev Sets the token manager of the contract.
-     * @param _baseUri for the ERC721 tokens metadata
-     */
-    function setBaseTokenUri(string memory _baseUri) public onlyOwner {
-        _setBaseTokenUri(_baseUri);
     }
 
     /**
@@ -243,19 +227,11 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
     }
 
     /**
-     * @dev Overrides the ERC721 function. Returns baseUri + tokenUri.
+     * @dev Overrides the ERC721 function. Returns String(tokenUri).
      * @param _tokenId provided tokenId
      */
     function tokenURI(uint256 _tokenId) public view returns (string memory) {
         require(_exists(_tokenId), "tokenId does not exists");
-        return Strings.strConcat(baseTokenUri, Strings.uint2str(_tokenId));
-    }
-
-    /**
-     * @dev Updates the baseTokenUri of token metadata
-     * @param _uri string of the base uri we'll use to concatenate
-     */
-    function _setBaseTokenUri(string memory _uri) internal {
-        baseTokenUri = _uri;
+        return Strings.uint2str(_tokenId);
     }
 }
