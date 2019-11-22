@@ -5,7 +5,7 @@ node_modules
 build
 
 # OpenZeppelin SDK
-.openzeppelin/dev-[^8995*].json
+.openzeppelin/dev-[^8995]*.json
 .openzeppelin/.session
 
 # Deployment configuration
