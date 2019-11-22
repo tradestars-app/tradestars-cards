@@ -44,6 +44,6 @@ $ npm run test
 Publish the project to the network.
 
 ```bash
-npx openzeppelin session --network ropsten
-npx openzeppelin create
+npx oz session --network ropsten
+npx oz push
 ```
