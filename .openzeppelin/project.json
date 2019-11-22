@@ -2,7 +2,6 @@
   "manifestVersion": "2.2",
   "contracts": {
     "FractionableERC721": "FractionableERC721",
-    "BondedERC20Helper": "BondedERC20Helper",
     "PerformanceCard": "PerformanceCard",
     "TConverter": "TConverter"
   },
@@ -17,5 +16,6 @@
         "runs": "200"
       }
     }
-  }
+  },
+  "telemetryOptIn": false
 }
