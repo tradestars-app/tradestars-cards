@@ -111,6 +111,14 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         return Strings.strConcat(baseUrlPath, Strings.uint2str(_tokenId));
     }
 
+    /**
+     * @dev Gets the bonded ERC20 for the card
+     * @param _tokenId to get bondedToken for
+     */
+    function getBondedERC20(uint256 _tokenId) public view returns (address) {
+        return nftRegistry.getBondedERC20(_tokenId);
+    }
+
      /**
      * @dev Sets the base URL path for cards metadata URLs.
      * @param _baseUrlPath for the tokens metadata

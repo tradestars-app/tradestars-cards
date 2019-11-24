@@ -43,7 +43,9 @@ contract TConverter is ITConverter, Ownable {
         uint256 srcBalance = IERC20(_srcToken).balanceOf(address(this));
         uint256 destBalance = IERC20(_destToken).balanceOf(address(this));
 
-        return destBalance.mul(CONVERT_PRECISION).div(srcBalance + _amount);
+        return destBalance.mul(CONVERT_PRECISION).div(
+            srcBalance.add(_amount)
+        );
     }
 
     /**

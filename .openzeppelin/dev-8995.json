@@ -301,178 +301,12 @@
         "uninitializedBaseContracts": []
       }
     },
-    "PerformanceCard": {
-      "address": "0x34adE1Fe6289093B70051029833ed0d0b1B7a464",
-      "constructorCode": "608060405261402f806100136000396000f3fe",
-      "bodyBytecodeHash": "de426441d132c98f0b4b92ed5d6f7a6f6ec61525081f825bba8bd6105a798138",
-      "localBytecodeHash": "2e4820c4ae3851d5c9d8d1ee0524108531d938c208151338c7bd1312ec7633b5",
-      "deployedBytecodeHash": "2e4820c4ae3851d5c9d8d1ee0524108531d938c208151338c7bd1312ec7633b5",
-      "types": {
-        "t_bool": {
-          "id": "t_bool",
-          "kind": "elementary",
-          "label": "bool"
-        },
-        "t_uint256": {
-          "id": "t_uint256",
-          "kind": "elementary",
-          "label": "uint256"
-        },
-        "t_array:50<t_uint256>": {
-          "id": "t_array:50<t_uint256>",
-          "valueType": "t_uint256",
-          "length": "50",
-          "kind": "array",
-          "label": "uint256[50]"
-        },
-        "t_address": {
-          "id": "t_address",
-          "kind": "elementary",
-          "label": "address"
-        },
-        "t_mapping<t_bool>": {
-          "id": "t_mapping<t_bool>",
-          "valueType": "t_bool",
-          "label": "mapping(key => bool)",
-          "kind": "mapping"
-        },
-        "t_uint32": {
-          "id": "t_uint32",
-          "kind": "elementary",
-          "label": "uint32"
-        },
-        "t_mapping<t_uint32>": {
-          "id": "t_mapping<t_uint32>",
-          "valueType": "t_uint32",
-          "label": "mapping(key => uint32)",
-          "kind": "mapping"
-        },
-        "t_string": {
-          "id": "t_string",
-          "kind": "elementary",
-          "label": "string"
-        }
-      },
-      "storage": [
-        {
-          "contract": "Initializable",
-          "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
-          "label": "initialized",
-          "astId": 8880,
-          "type": "t_bool",
-          "src": "757:24:35"
-        },
-        {
-          "contract": "Initializable",
-          "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
-          "label": "initializing",
-          "astId": 8882,
-          "type": "t_bool",
-          "src": "876:25:35"
-        },
-        {
-          "contract": "Initializable",
-          "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
-          "label": "______gap",
-          "astId": 8938,
-          "type": "t_array:50<t_uint256>",
-          "src": "1951:29:35"
-        },
-        {
-          "contract": "Ownable",
-          "path": "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol",
-          "label": "_owner",
-          "astId": 6606,
-          "type": "t_address",
-          "src": "526:22:22"
-        },
-        {
-          "contract": "Ownable",
-          "path": "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol",
-          "label": "______gap",
-          "astId": 6719,
-          "type": "t_array:50<t_uint256>",
-          "src": "2471:29:22"
-        },
-        {
-          "contract": "Administrable",
-          "path": "contracts/utils/Administrable.sol",
-          "label": "adminsMap",
-          "astId": 4814,
-          "type": "t_mapping<t_bool>",
-          "src": "379:42:13"
-        },
-        {
-          "contract": "GasPriceLimited",
-          "path": "contracts/utils/GasPriceLimited.sol",
-          "label": "gasPriceLimit",
-          "astId": 4976,
-          "type": "t_uint256",
-          "src": "179:28:14"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "tsToken",
-          "astId": 2786,
-          "type": "t_address",
-          "src": "1434:22:6"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "reserveToken",
-          "astId": 2788,
-          "type": "t_address",
-          "src": "1493:27:6"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "tConverter",
-          "astId": 2790,
-          "type": "t_address",
-          "src": "1545:30:6"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "nftRegistry",
-          "astId": 2792,
-          "type": "t_address",
-          "src": "1600:39:6"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "cardScoresMap",
-          "astId": 2796,
-          "type": "t_mapping<t_uint32>",
-          "src": "1680:48:6"
-        },
-        {
-          "contract": "PerformanceCard",
-          "path": "contracts/cards/PerformanceCard.sol",
-          "label": "baseUrlPath",
-          "astId": 2798,
-          "type": "t_string",
-          "src": "1767:25:6"
-        }
-      ],
-      "warnings": {
-        "hasConstructor": false,
-        "hasSelfDestruct": false,
-        "hasDelegateCall": false,
-        "hasInitialValuesInDeclarations": false,
-        "uninitializedBaseContracts": []
-      }
-    },
     "TConverter": {
-      "address": "0xE689e78F460E2754De6e8478cDe487b3F1BA0347",
-      "constructorCode": "6080604052610f39806100136000396000f3fe",
-      "bodyBytecodeHash": "15774e21b951cc67e89aef98a3157b7687448932e9121a6400a01fbf6eb3d626",
-      "localBytecodeHash": "bd6e8901c07ea30f8691be46299e48bfc12b942bdf998440ce514a83e1543699",
-      "deployedBytecodeHash": "bd6e8901c07ea30f8691be46299e48bfc12b942bdf998440ce514a83e1543699",
+      "address": "0xD5010F5c3dAfe456D3d51200200AD95e41Ea7a5e",
+      "constructorCode": "6080604052610fa0806100136000396000f3fe",
+      "bodyBytecodeHash": "b36958d6a44626d5f9b754444dd9e2d8d516747bc741836ef62de2ba08ca9a1a",
+      "localBytecodeHash": "068992478066c83caf6cb07f5da17f4fbfb25f87c0fabeea02e607ee862b7a7f",
+      "deployedBytecodeHash": "068992478066c83caf6cb07f5da17f4fbfb25f87c0fabeea02e607ee862b7a7f",
       "types": {
         "t_bool": {
           "id": "t_bool",
@@ -502,7 +336,7 @@
           "contract": "Initializable",
           "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
           "label": "initialized",
-          "astId": 8880,
+          "astId": 8881,
           "type": "t_bool",
           "src": "757:24:35"
         },
@@ -510,7 +344,7 @@
           "contract": "Initializable",
           "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
           "label": "initializing",
-          "astId": 8882,
+          "astId": 8883,
           "type": "t_bool",
           "src": "876:25:35"
         },
@@ -518,7 +352,7 @@
           "contract": "Initializable",
           "path": "@openzeppelin/upgrades/contracts/Initializable.sol",
           "label": "______gap",
-          "astId": 8938,
+          "astId": 8939,
           "type": "t_array:50<t_uint256>",
           "src": "1951:29:35"
         },
@@ -526,7 +360,7 @@
           "contract": "Ownable",
           "path": "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol",
           "label": "_owner",
-          "astId": 6606,
+          "astId": 6607,
           "type": "t_address",
           "src": "526:22:22"
         },
@@ -534,7 +368,7 @@
           "contract": "Ownable",
           "path": "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol",
           "label": "______gap",
-          "astId": 6719,
+          "astId": 6720,
           "type": "t_array:50<t_uint256>",
           "src": "2471:29:22"
         },
@@ -552,7 +386,9 @@
         "hasSelfDestruct": false,
         "hasDelegateCall": false,
         "hasInitialValuesInDeclarations": false,
-        "uninitializedBaseContracts": []
+        "uninitializedBaseContracts": [],
+        "storageUncheckedVars": [],
+        "storageDiff": []
       }
     }
   },
