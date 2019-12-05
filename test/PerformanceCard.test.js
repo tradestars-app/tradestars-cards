@@ -84,8 +84,8 @@ const createCardArgs = (tokenId) => {
     'tokenId': tokenId,
     'symbol': `T${tokenId}`,
     'name': `Test Card ${tokenId}`,
-    'score': 5500,
-    'cardValue': toWei('1')
+    'score': 500,
+    'cardValue': "762175324675324700000000"
   };
 }
 
@@ -278,12 +278,10 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const adminSignature = await createSignature(createCardHash, adminSigner);
 
       // EIP712
-      const chainId = await web3.eth.net.getId();
-      const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
       const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
 
       const typedData = getOrderTypedData(
-        chainId,
         orderId,
         expiration,
         tsToken.address, /// The token contract address
@@ -291,9 +289,11 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
         contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
       );
 
-      /// PK for someone account (3)
+      // console.log('typedData', typedData);
+
+      /// PK for someone => account (3)
       const orderSignature = ethSign.signTypedData(
-        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { from: msgSender, data: typedData }
+        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { data: typedData }
       );
 
       return contract.methods.createCard(
@@ -316,11 +316,11 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
     before(async function() {
       // Set TConverter Token / Reserve pair
-      await tsToken.methods.mint(tConverter.address, toWei('1000000')).send();
-      await reserveToken.methods.mint(tConverter.address, toWei('12000')).send();
+      await tsToken.methods.mint(tConverter.address, toWei('10000000')).send();
+      await reserveToken.methods.mint(tConverter.address, toWei('120000')).send();
 
       // Mint tokens for card creator
-      await tsToken.methods.mint(someone, toWei('100')).send();
+      await tsToken.methods.mint(someone, toWei('1000000')).send();
     });
 
     it(`Should OK createCard()`, async function() {
@@ -359,7 +359,7 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
     it(`should OK getScore()`, async function() {
       score = await contract.methods.getScore(tokenId).call();
-      score.should.be.eq('5500'); /// created token initial score
+      score.should.be.eq('500'); /// created token initial score
     });
 
     it(`should OK updateScore()`, async function() {
@@ -423,12 +423,10 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
       /// purchase() and check received tokens == estimation
 
-      const chainId = await web3.eth.net.getId();
       const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
       const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
 
       const typedData = getOrderTypedData(
-        chainId,
         orderId,
         expiration,
         tsToken.address, /// The token contract address

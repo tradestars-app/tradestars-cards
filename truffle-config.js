@@ -31,10 +31,10 @@ module.exports = {
       network_id: '1'
     },
     maticTest: {
-      provider: () => new HDWalletProvider(mnemonic, `https://testnet2.matic.network`),
+      provider: () => new HDWalletProvider(mnemonic, `https://testnetv3.matic.network`),
       gas: 5500000,
       gasPrice: 0,
-      network_id: '*',
+      network_id: '8995',
       confirmations: 2
     }
   },
@@ -49,7 +49,7 @@ module.exports = {
     }
   },
   mocha: {
-    timeout: 10000,
+    timeout: 1000000,
     slow: 30000
   }
 };

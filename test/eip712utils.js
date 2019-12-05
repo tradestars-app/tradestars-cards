@@ -1,7 +1,4 @@
-const { keccak256, setLengthLeft, toBuffer } = require('ethereumjs-util');
-
 /**
- * @param chainId chainId where the TX will be executed
  * @param orderId a unique number for the order
  * @param expiration expiration ts of the order
  * @param tokenAddress is the ERC20/ERC721 registry where the user holds its tokens
@@ -9,19 +6,17 @@ const { keccak256, setLengthLeft, toBuffer } = require('ethereumjs-util');
  * @param spenderAddress should be the address of the calling contract
  */
 export function getOrderTypedData(
-  chainId,
   orderId,
   expiration,
   tokenAddress,
   tokenIdOrAmount,
   spenderAddress
 ) {
-
   const domain = [
     { name: 'name', type: 'string' },
     { name: 'version', type: 'string' },
     { name: 'chainId', type: 'uint256' },
-    { name: 'verifyingContract', type: 'address' },
+    { name: 'contract', type: 'address' },
   ];
 
   const message = [
@@ -31,13 +26,11 @@ export function getOrderTypedData(
     { name: 'expiration', type: 'uint256' },
   ];
 
-  const orderData = Buffer.concat([
-    toBuffer(orderId),
-    toBuffer(tokenAddress),
-    setLengthLeft('0x' + web3.utils.toBN(tokenIdOrAmount).toString(16), 32),
-  ]);
-
-  const orderDataHash = keccak256(orderData);
+  const orderDataHash = web3.utils.soliditySha3(
+    { type: 'bytes32', value: orderId },
+    { type: 'address', value: tokenAddress },
+    { type: 'uint256', value: tokenIdOrAmount }
+  );
 
   return {
     types: {
@@ -46,10 +39,10 @@ export function getOrderTypedData(
     },
     primaryType: 'TokenTransferOrder',
     domain: {
-      name: 'TradeStars App',
+      name: 'Matic Network',
       version: '1',
-      chainId, // should come as paramenter
-      verifyingContract: tokenAddress,
+      chainId: 15001, // should come as paramenter
+      contract: tokenAddress,
     },
     message: {
       spender: spenderAddress, // This contract address

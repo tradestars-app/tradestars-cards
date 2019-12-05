@@ -191,7 +191,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     )
         public gasPriceLimited
     {
-        require(nftRegistry.getBondedERC20(_tokenId) == address(0), "Card already created");
+        require(nftRegistry.getBondedERC20(_tokenId) == address(0), "card already created");
 
         /// Check hashed message & admin signature
         bytes32 checkHash = keccak256(
@@ -204,13 +204,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         /// Check the sender has the required TSX balance
         _requireBalance(msg.sender, tsToken, _cardValue);
 
-        /// Calculate the initial ERC20 balance for this card by getting
-        ///  a ERC20_INITIAL_POOL_SHARE amount from card creation value
-        uint256 cardInitialBalance = (ERC20_INITIAL_POOL_SHARE * _cardValue) / MATH_PRECISION;
-
-        /// Burn the card value minus initial ERC20 balance
-        uint256 netTokensToBurn = _cardValue - cardInitialBalance;
-
         /// Transfer TSX _cardValue from caller account to this contract using EIP712 signature
         EIP712(address(tsToken)).transferWithSig(
             _orderSignature,
@@ -222,7 +215,14 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             address(this)
         );
 
-        /// from the cardValue tokens transferred, burn netTokens
+        /// Calculate the initial ERC20 balance for this card by getting
+        ///  a ERC20_INITIAL_POOL_SHARE amount from card creation value
+        uint256 cardInitialBalance = (ERC20_INITIAL_POOL_SHARE * _cardValue) / MATH_PRECISION;
+
+        /// Burn the card value minus initial ERC20 balance
+        uint256 netTokensToBurn = _cardValue - cardInitialBalance;
+
+        /// from the cardValue tokens transferred to this contract, burn() netTokens
         ///  TODO: change this for a call to burn() instead
         tsToken.safeTransfer(owner(), netTokensToBurn);
 
