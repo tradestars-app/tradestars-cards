@@ -63,29 +63,36 @@ contract TConverter is ITConverter, Ownable {
     {
         require(msg.sender == allowedCaller, "caller is not allowed");
 
+        uint256 rate = _getRate(_srcToken, _destToken);
+        uint256 destAmount = _srcAmount.mul(rate).div(CONVERT_PRECISION);
+
         require(
-            IERC20(_srcToken).balanceOf(msg.sender) >= _srcAmount,
+            IERC20(_srcToken).balanceOf(address(this)) >= _srcAmount,
             "Insufficient src token funds"
         );
-        require(
-            IERC20(_srcToken).allowance(msg.sender, address(this)) >= _srcAmount,
-            "Insufficient src token allowance"
-        );
-
-        uint256 rate = getExpectedRate(_srcToken, _destToken, _srcAmount);
-        uint256 destAmount = _srcAmount.mul(rate).div(CONVERT_PRECISION);
 
         require(
             IERC20(_destToken).balanceOf(address(this)) >= destAmount,
             "Insufficient dst token funds"
         );
 
-        /// Transfer tokens to be converted from msg.sender to this contract
-        IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
+        /// Transfer dst tokens to sender
         IERC20(_destToken).safeTransfer(msg.sender, destAmount);
 
-        emit SwapToken(msg.sender, _srcToken, _destToken);
+        emit SwapToken(_srcToken, _destToken, _srcAmount, destAmount);
 
         return destAmount;
+    }
+
+    function _getRate(
+        address _srcToken,
+        address _destToken
+    )
+        public view returns (uint256)
+    {
+        uint256 srcBalance = IERC20(_srcToken).balanceOf(address(this));
+        uint256 destBalance = IERC20(_destToken).balanceOf(address(this));
+
+        return destBalance.mul(CONVERT_PRECISION).div(srcBalance);
     }
 }

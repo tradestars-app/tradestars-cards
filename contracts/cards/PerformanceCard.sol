@@ -227,9 +227,12 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         tsToken.safeTransfer(owner(), netTokensToBurn);
 
         /// Swap the initial ERC20 balance in TradeStars tokens for the Stable Reserve
-        tsToken.safeIncreaseAllowance(address(tConverter), cardInitialBalance);
+        tsToken.safeTransfer(address(tConverter), cardInitialBalance);
+
         tConverter.trade(
-            address(tsToken), address(reserveToken), cardInitialBalance
+            address(tsToken),
+            address(reserveToken),
+            cardInitialBalance
         );
 
         /// Create player card (owner is msg.sender) and issue the first tokens to the platform owner
@@ -331,7 +334,8 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         );
 
         /// Convert tokens, get reserve
-        tsToken.safeIncreaseAllowance(address(tConverter), _paymentAmount);
+        tsToken.safeTransfer(address(tConverter), _paymentAmount);
+
         uint256 reserveAmount = tConverter.trade(
             address(tsToken),
             address(reserveToken),
@@ -424,10 +428,12 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         nftRegistry.burnBondedERC20(_tokenId, msg.sender, _liquidationAmount, reserveAmount);
 
         /// Trade reserve to TSX and send to liquidator
-        reserveToken.safeIncreaseAllowance(address(tConverter), reserveAmount);
+        reserveToken.safeTransfer(address(tConverter), reserveAmount);
 
         uint256 dstAmount = tConverter.trade(
-            address(reserveToken), address(tsToken), reserveAmount
+            address(reserveToken),
+            address(tsToken),
+            reserveAmount
         );
 
         tsToken.safeTransfer(msg.sender, dstAmount);

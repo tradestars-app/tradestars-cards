@@ -43,14 +43,14 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
     before(async function() {
 
       // Mint Reserve ERC20 and Reserve Tokens for the converter
-      // The ratio would be 12 TSX to 1 reserve (1200 -> 100)
+      // The ratio would be 10 TSX to 1 reserve (1000 -> 100)
       await reserveToken.methods.mint(contract.address, toWei('100')).send({
         from: owner,
         gas: 6721975,
         gasPrice: 5e9
       });
 
-      await tsToken.methods.mint(contract.address, toWei('1200')).send({
+      await tsToken.methods.mint(contract.address, toWei('1000')).send({
         from: owner,
         gas: 6721975,
         gasPrice: 5e9
@@ -75,7 +75,7 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
     });
 
     it(`Should OK check getExpectedRate() :: token -> reserve`, async function() {
-      const amount = toWei('120');
+      const amount = toWei('100');
 
       const rate = await contract.methods.getExpectedRate(
         tsToken.address,
@@ -83,7 +83,7 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
         amount
       ).call();
 
-      fromWei(rate).should.be.eq('0.075757575757575757');
+      fromWei(rate).should.be.eq('0.090909090909090909');
     });
 
     it(`Should OK check getExpectedRate() :: reserve -> token`, async function() {
@@ -95,7 +95,7 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
         amount
       ).call();
 
-      fromWei(rate).should.be.eq('11.881188118811881188');
+      fromWei(rate).should.be.eq('9.90099009900990099');
     });
 
     it(`Should OK trade() token -> reserve`, async function() {
@@ -109,8 +109,11 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
         gasPrice: 5e9
       });
 
+      const prevReserveBalance = await reserveToken.methods.balanceOf(seller).call();
+      fromWei(prevReserveBalance).should.be.eq('0');
+
       /// Increase allowance for trading.
-      await tsToken.methods.increaseAllowance(contract.address, amount).send({
+      await tsToken.methods.transfer(contract.address, amount).send({
         from: seller,
         gas: 6721975,
         gasPrice: 5e9
@@ -132,19 +135,11 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
       fromWei(tsBalance).should.be.eq('0');
 
       const reserveBalance = await reserveToken.methods.balanceOf(seller).call();
-      fromWei(reserveBalance).should.be.eq('7.6923076923076923');
+      fromWei(reserveBalance).should.be.eq('9.0909090909090909');
     });
 
     it(`Should FAIL trade() :: not allowed caller`, async function() {
-      const seller = allowedCaller;
       const amount = toWei('5');
-
-      /// Increase allowance for trading.
-      await reserveToken.methods.increaseAllowance(contract.address, amount).send({
-        from: seller,
-        gas: 6721975,
-        gasPrice: 5e9
-      });
 
       await assertRevert(
         contract.methods.trade(
@@ -159,29 +154,12 @@ contract('TConverter', ([_, owner, allowedCaller, someone]) => {
       );
     });
 
-    it(`Should FAIL trade() :: allowance`, async function() {
-      const seller = allowedCaller;
-      const amount = toWei('5');
-
-      await assertRevert(
-        contract.methods.trade(
-          tsToken.address,
-          reserveToken.address,
-          amount
-        ).send({
-          from: seller,
-          gas: 6721975,
-          gasPrice: 5e9
-        })
-      );
-    });
-
     it(`Should OK trade() :: reserve -> token`, async function() {
       const seller = allowedCaller;
       const amount = await reserveToken.methods.balanceOf(seller).call();
 
       /// Increase allowance for trading.
-      await reserveToken.methods.increaseAllowance(contract.address, amount).send({
+      await reserveToken.methods.transfer(contract.address, amount).send({
         from: seller,
         gas: 6721975,
         gasPrice: 5e9

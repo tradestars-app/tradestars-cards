@@ -3,7 +3,12 @@ pragma solidity ^0.5.12;
 interface ITConverter {
 
     /// Events.
-    event SwapToken(address indexed sender, address srcToken, address destToken);
+    event SwapToken(
+        address indexed srcToken,
+        address indexed destToken,
+        uint256 srcAmount,
+        uint256 dstAmount
+    );
 
     function getExpectedRate(
         address _srcToken,
