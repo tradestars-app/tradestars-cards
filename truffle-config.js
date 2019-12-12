@@ -33,7 +33,7 @@ module.exports = {
     maticTest: {
       provider: () => new HDWalletProvider(mnemonic, `https://testnetv3.matic.network`),
       gas: 5500000,
-      gasPrice: 0,
+      gasPrice: 5e9,
       network_id: '8995',
       confirmations: 2
     }
