@@ -61,7 +61,7 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
      * @param _helper address
      */
     function setBondedHelper(address _helper) public onlyOwner {
-        bondedHelper = _helper;
+        bondedHelper = IBondedERC20Helper(_helper);
     }
 
     /**

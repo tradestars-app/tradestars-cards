@@ -476,4 +476,82 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
   });
 
+  describe('Test relayedTx / purchase', function() {
+    const tokenId = 1000;
+
+    it(`Should OK purchase() relayed`, async function() {
+
+      const paymentAmount = toWei('10');
+
+      const addr = await fractionableERC721.methods.getBondedERC20(tokenId).call();
+      const bondedToken = BondedERC20.at(addr);
+
+      const tSupply = await bondedToken.methods.balanceOf(someone).call();
+      tSupply.should.be.eq('0');
+
+      /// purchase() and check received tokens == estimation
+
+      const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
+      const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        expiration,
+        tsToken.address, /// The token contract address
+        paymentAmount,  // tokens amount
+        contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
+      );
+
+      /// PK for 'someone' -> (account 3)
+      const orderSignature = ethSign.signTypedData(
+        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { from: someone, data: typedData }
+      );
+
+      const abiEncoded = contract.methods.purchase(
+        tokenId,
+        paymentAmount,
+        expiration,
+        orderId,
+        orderSignature
+      ).encodeABI();
+
+      /// Test relay
+      const nonce = 10000;
+      const signer = someone;
+      const orderHash = soliditySha3(
+        { t: 'uint256', v: nonce },
+        { t: 'address', v: signer },
+        { t: 'bytes', v: abiEncoded },
+      );
+
+      // relay tx
+      const orderHashSignature = await createSignature(orderHash, signer);
+      const ordedEncoded = contract.methods.executeRelayedTx(
+        nonce,
+        signer,
+        abiEncoded,
+        orderHashSignature
+      ).encodeABI();
+
+      let txParams = {};
+      txParams.data = ordedEncoded;
+      txParams.to = contract.address;
+      txParams.gas = 5e6; //
+      txParams.gasPrice = String(5e9);
+      txParams.chainId = await web3.eth.net.getId();
+      txParams.nonce = await web3.eth.getTransactionCount(signer);
+
+      /// PK for 'signer' -> (account 3)
+      const signedTx = await web3.eth.accounts.signTransaction(
+        txParams, '0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913');
+
+      // Send Tx
+      await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
+      const newSupply = await bondedToken.methods.balanceOf(signer).call();
+      newSupply.should.be.not.eq('0');
+    });
+
+  });
+
 });

@@ -36,6 +36,13 @@ module.exports = {
       gasPrice: 5e9,
       network_id: '8995',
       confirmations: 2
+    },
+    maticMainnet: {
+      provider: () => new HDWalletProvider(mnemonic, `https://betav2.matic.network`),
+      gas: 5500000,
+      gasPrice: 5e9,
+      network_id: '16110',
+      confirmations: 2
     }
   },
   compilers: {
