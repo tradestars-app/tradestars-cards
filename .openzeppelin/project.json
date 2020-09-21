@@ -2,20 +2,25 @@
   "manifestVersion": "2.2",
   "contracts": {
     "FractionableERC721": "FractionableERC721",
-    "PerformanceCard": "PerformanceCard",
-    "TConverter": "TConverter"
+    "PerformanceCard": "PerformanceCard"
   },
   "dependencies": {},
   "name": "tradestars-cards",
   "version": "1.0.0",
   "compiler": {
-    "manager": "truffle",
     "compilerSettings": {
       "optimizer": {
         "enabled": true,
         "runs": "200"
       }
-    }
+    },
+    "typechain": {
+      "enabled": false
+    },
+    "manager": "openzeppelin",
+    "solcVersion": "0.6.10",
+    "artifactsDir": "build/contracts",
+    "contractsDir": "contracts"
   },
   "telemetryOptIn": false
 }

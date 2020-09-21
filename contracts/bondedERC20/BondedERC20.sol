@@ -1,4 +1,4 @@
-pragma solidity ^0.5.12;
+pragma solidity ^0.6.8;
 
 /// This Contract is not upgradable.
 import "./IBondedERC20Transfer.sol";
@@ -7,59 +7,41 @@ import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/ERC20.sol
 /**
  * @title BondedERC20
  */
-contract BondedERC20 is ERC20 {
+contract BondedERC20 is Ownable, ERC20 {
 
     using SafeMath for uint256;
 
-    address public owner;
-
-    string public name;
-    string public symbol;
-
-    uint8 public decimals;
-
     uint256 public tokenId;
 
-    /// Initial Pool
+    /// Keeps track of the reserve balance.
     uint256 public poolBalance;
 
     /// Represented in PPM 1-1000000
-    uint32 public reserveRatio;
-
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        require(msg.sender == owner, "msg.sender is not owner");
-        _;
-    }
+    uint256 public reserveRatio;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        uint256 _tokenId,
-        address _owner
+        uint256 _tokenId
     )
-        public
+        public Ownable(), ERC20(_name, _symbol)
     {
-        name = _name;
-        symbol = _symbol;
         tokenId = _tokenId;
-        decimals = 18;
 
         /// sets the reserve ratio for the token
         reserveRatio = 333333;
-
-        /// sets the owner for this contract
-        owner = _owner;
     }
 
     /**
      * @dev Sets reserve ratio for the token
      * @param _reserveRatio in PPM 1-1000000
      */
-    function setReserveRatio(uint32 _reserveRatio) public onlyOwner {
-        require(_reserveRatio > 1 && _reserveRatio <= 1000000, "invalid _reserveRatio");
+    function setReserveRatio(uint256 _reserveRatio) public onlyOwner {
+        require(
+            _reserveRatio > 1 && _reserveRatio <= 1000000,
+            "BondedERC20: invalid _reserveRatio"
+        );
+
         reserveRatio = _reserveRatio;
     }
 

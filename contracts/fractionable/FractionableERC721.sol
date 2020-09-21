@@ -1,4 +1,4 @@
-pragma solidity ^0.5.12;
+pragma solidity ^0.6.8;
 
 import "./IFractionableERC721.sol";
 
@@ -9,9 +9,10 @@ import "../lib/Strings.sol";
 import "../lib/ERC20Manager.sol";
 
 import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC721/ERC721Full.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC721/ERC721.sol";
 
-contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBondedERC20Transfer {
+
+contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC20Transfer {
 
     /// Helper contract for ERC20 transactions.
     IBondedERC20Helper private bondedHelper;
@@ -39,10 +40,7 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
         public initializer
     {
         Ownable.initialize(_owner);
-
-        ERC721.initialize();
-        ERC721Enumerable.initialize();
-        ERC721Metadata.initialize(_name, _symbol);
+        ERC721.initialize(_name, _symbol);
 
         // Sets address for helper functions
         bondedHelper = IBondedERC20Helper(_bondedHelper);
@@ -232,14 +230,5 @@ contract FractionableERC721 is Ownable, ERC721Full, IFractionableERC721, IBonded
      */
     function getBondedERC20(uint256 _tokenId) public view returns (address) {
         return fungiblesMap[_tokenId];
-    }
-
-    /**
-     * @dev Overrides the ERC721 function. Returns String(tokenUri).
-     * @param _tokenId provided tokenId
-     */
-    function tokenURI(uint256 _tokenId) public view returns (string memory) {
-        require(_exists(_tokenId), "tokenId does not exists");
-        return Strings.uint2str(_tokenId);
     }
 }

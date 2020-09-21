@@ -1,4 +1,4 @@
-pragma solidity ^0.5.12;
+pragma solidity ^0.6.8;
 
 import "../bondedERC20/BondedERC20.sol";
 
