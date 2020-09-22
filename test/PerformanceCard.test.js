@@ -1,5 +1,11 @@
-const { TestHelper } = require('@openzeppelin/cli');
-const { Contracts, ZWeb3, assertRevert } = require('@openzeppelin/upgrades');
+const { accounts, contract, web3, privateKeys } = require('@openzeppelin/test-environment')
+
+const {
+  BN, // big number
+  time, // time helpers
+  expectEvent, // Assertions for emitted events
+  expectRevert, // Assertions for transactions that should fail
+} = require('@openzeppelin/test-helpers')
 
 const { toWei, soliditySha3 } = require('web3-utils');
 
@@ -11,46 +17,18 @@ const { randomBytes } = require('crypto');
 
 const { getOrderTypedData } = require('./eip712utils');
 
-ZWeb3.initialize(web3.currentProvider);
-
-require('chai').should();
+const expect = require('chai')
+  .use(require('bn-chai')(BN))
+  .expect
 
 /// Used artifacts
-const TConverter = Contracts.getFromLocal('TConverter');
-const BondedERC20 = Contracts.getFromLocal('BondedERC20');
-const BondedHelper = Contracts.getFromLocal('BondedERC20Helper');
-const PerformanceCard = Contracts.getFromLocal('PerformanceCard');
-const FractionableERC721 = Contracts.getFromLocal('FractionableERC721');
+const BondedERC20 = contract.fromArtifact('BondedERC20');
+const BondedHelper = contract.fromArtifact('BondedERC20Helper');
+const PerformanceCard = contract.fromArtifact('PerformanceCard');
+const FractionableERC721 = contract.fromArtifact('FractionableERC721');
 
 /// Create a Mock Contract
-const ERC20Mock = Contracts.getFromLocal('ERC20Mock');
-
-/// check events
-function checkEventName(tx, eventName) {
-  tx.events[eventName].event.should.be.eq(eventName);
-}
-
-// Helper functions
-
-const assertGasLt = async (txHash, expected) => {
-  const { gas } = await ZWeb3.getTransaction(txHash);
-  gas.should.be.at.most(parseInt(expected));
-};
-
-const assertGasEq = async (txHash, expected) => {
-  const { gas } = await ZWeb3.getTransaction(txHash);
-  gas.should.be.eq(parseInt(expected));
-};
-
-const assertGasPrice = async (txHash, expected) => {
-  const { gasPrice } = await ZWeb3.getTransaction(txHash);
-  parseInt(gasPrice).should.be.eq(expected);
-};
-
-const assertFrom = async (txHash, expected) => {
-  const { from } = await ZWeb3.getTransaction(txHash);
-  from.should.be.eq(expected);
-};
+const ERC20Mock = contract.fromArtifact('ERC20Mock');
 
 const createSignature = async (msgHash, signer) => {
   const signature = await web3.eth.sign(msgHash, signer);
@@ -74,7 +52,6 @@ const createHash = (args) => {
     { t: 'uint256', v: args['tokenId'] },
     { t: 'string', v: args['symbol'] },
     { t: 'string', v: args['name'] },
-    { t: 'uint32', v: args['score'] },
     { t: 'uint256', v: args['cardValue'] }
   );
 }
@@ -84,130 +61,112 @@ const createCardArgs = (tokenId) => {
     'tokenId': tokenId,
     'symbol': `T${tokenId}`,
     'name': `Test Card ${tokenId}`,
-    'score': 500,
-    'cardValue': "762175324675324700000000"
+    'cardValue': toWei('10') // 10 ether
   };
 }
 
-contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buyer2, buyer3]) => {
+describe('PerformanceCard', function () {
 
-  let contract;
-
-  let tsToken;
-  let reserveToken;
-
-  let tConverter;
-  let fractionableERC721;
+  const [ owner, admin, someone, anotherone ] = accounts;
 
   before(async function() {
-    const project = await TestHelper();
-
-    /// Create BondedHelper
-    const bondedHelper = await BondedHelper.new({ gas: 5000000, from: owner });
 
     /// Create Mock ERC20 Contracts
-    tsToken = await ERC20Mock.new({ gas: 5000000, from: owner });
-    reserveToken = await ERC20Mock.new({ gas: 5000000, from: owner });
+    this.reserveToken = await ERC20Mock.new(
+      "erc20Mock",
+      "mock", {
+        from: owner
+      }
+    );
 
-    /// Create TConverter & FractionableERC721
-    tConverter = await TConverter.new({ gas: 5000000, from: owner });
-    fractionableERC721 = await FractionableERC721.new({ gas: 5000000, from: owner });
+    /// Create BondedHelper
+    const bondedHelper = await BondedHelper.new({ from: owner });
 
-    /// Create new PerformanceCard registry
-    contract = await project.createProxy(PerformanceCard, {
-      initMethod: 'initialize',
-      initArgs: [
-        owner,
-        fractionableERC721.address,
-        tConverter.address,
-        tsToken.address,
-        reserveToken.address,
-      ]
-    });
-
-    /// initialize tConverter & fractionableERC721 contracts.
-
-    await tConverter.methods.initialize(owner).send({
-      gas: 5000000,
-      from: owner
-    });
-
-    await fractionableERC721.methods.initialize(
-      owner,
+    this.fractionableERC721 = await FractionableERC721.new(
       bondedHelper.address,
       "name",
-      "symbol"
-    ).send({
-      gas: 5000000,
-      from: owner
-    });
+      "symbol", {
+        from: owner
+      }
+    );
 
-    /// set allowed callers to tConverter & fractionableERC721
+    this.contract = await PerformanceCard.new({ from: owner })
 
-    await tConverter.methods.setAllowedCaller(contract.address).send({
-      gas: 5000000,
-      from: owner
-    });
+    await this.contract.initialize(
+      this.fractionableERC721.address,
+      this.reserveToken.address, {
+        from: owner
+      }
+    );
 
-    await fractionableERC721.methods.setTokenManager(contract.address).send({
-      gas: 5000000,
-      from: owner
-    })
+    /// set allowed callers to fractionableERC721
+    await this.fractionableERC721.setTokenManager(this.contract.address, {
+        from: owner
+      }
+    )
 
   });
 
   describe('Tests Admins Management', function() {
 
     it(`Should OK addAdmin()`, async function() {
-      const tx = await contract.methods.addAdmin(admin).send({
+      const tx = await this.contract.addAdmin(admin, {
         from: owner
       });
 
-      checkEventName(tx, 'AdminAdded');
+      expectEvent(tx, 'AdminAdded');
 
-      const isAdmin = await contract.methods.isAdmin(admin).call();
-      isAdmin.should.be.eq(true);
+      const isAdmin = await this.contract.isAdmin(admin)
+      expect(isAdmin).to.be.true;
     });
 
     it(`Should OK removeAdmin()`, async function() {
-      const tx = await contract.methods.removeAdmin(admin).send({
+      const tx = await this.contract.removeAdmin(admin, {
         from: owner
       });
 
-      checkEventName(tx, 'AdminRemoved');
+      expectEvent(tx, 'AdminRemoved');
 
-      const isAdmin = await contract.methods.isAdmin(admin).call();
-      isAdmin.should.be.eq(false);
+      const isAdmin = await this.contract.isAdmin(admin)
+      expect(isAdmin).to.be.false;
     });
 
     it(`Should FAIL addAdmin() :: not owner`, async function() {
-      await assertRevert(
-        contract.methods.addAdmin(admin).send({
+      await expectRevert(
+        this.contract.addAdmin(admin, {
           from: someone
-        })
+        }),
+        'Ownable: caller is not the owne'
       );
     });
 
     it(`Should FAIL addAdmin() :: already admin`, async function() {
-      await contract.methods.addAdmin(admin).send({ from: owner });
-      await assertRevert(
-        contract.methods.addAdmin(admin).send({ from: owner })
+      await this.contract.addAdmin(admin, { from: owner });
+      await expectRevert(
+        this.contract.addAdmin(admin, {
+          from: owner
+        }),
+        'Administrable: wallet already admin'
       );
     });
 
     it(`Should FAIL renounceAdmin() :: not admin`, async function() {
-      await assertRevert(
-        contract.methods.renounceAdmin().send({ from: someone })
+      await expectRevert(
+        this.contract.renounceAdmin({
+          from: someone
+        }),
+        'Administrable: sender is not admin'
       );
     });
 
     it(`Should OK renounceAdmin()`, async function() {
-      const tx = await contract.methods.renounceAdmin().send({ from: admin });
+      const tx = await this.contract.renounceAdmin({ from: admin });
 
-      checkEventName(tx, 'AdminRemoved');
+      expectEvent(tx, 'AdminRemoved');
 
-      const isAdmin = await contract.methods.isAdmin(admin).call();
-      isAdmin.should.be.eq(false);
+      const isAdmin = await this.contract.isAdmin(admin)
+
+      expect(isAdmin).to.be.false;
     });
 
   });
@@ -215,64 +174,41 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
   describe('Tests gasPriceLimit Management', function() {
 
     before(async function() {
-      await contract.methods.addAdmin(admin).send({ from: owner });
+      await this.contract.addAdmin(admin, { from: owner });
     });
 
     it(`Should OK setGasPriceLimit()`, async function() {
-      let gasLimit = await contract.methods.gasPriceLimit().call();
-      gasLimit.should.be.eq('0');
+      let gasLimit = await this.contract.gasPriceLimit()
+      expect(gasLimit).to.be.eq.BN('0');
 
       const newLimit = toWei('26', 'gwei');
 
-      const tx = await contract.methods.setGasPriceLimit(newLimit).send({
+      const tx = await this.contract.setGasPriceLimit(newLimit, {
         from: admin
       });
 
-      checkEventName(tx, 'GasPriceLimitChanged');
+      expectEvent(tx, 'GasPriceLimitChanged');
 
-      gasLimit = await contract.methods.gasPriceLimit().call();
-      gasLimit.should.be.eq(newLimit);
+      gasLimit = await this.contract.gasPriceLimit()
+      expect(gasLimit).to.be.eq.BN(newLimit);
     });
 
     it(`Should FAIL setGasPriceLimit() :: not admin`, async function() {
       const newLimit = toWei('26', 'gwei');
 
-      await assertRevert(
-        contract.methods.setGasPriceLimit(newLimit).send({
+      await expectRevert(
+        this.contract.setGasPriceLimit(newLimit, {
           from: someone
-        })
+        }),
+        "Administrable: sender is not admin"
       );
     });
 
   });
 
-  describe('Tests baseTokenUri Management', function() {
+  describe('Tests Cards creation', function() {
 
-    it(`Should OK setBaseUrlPath()`, async function() {
-      const newUri = 'https://newURL/cards/';
-
-      await contract.methods.setBaseUrlPath(newUri).send({
-        from: admin
-      })
-
-      const uri = await contract.methods.baseUrlPath().call();
-      uri.should.be.eq(newUri);
-    });
-
-    it(`Should FAIL setBaseUrlPath() :: not admin`, async function() {
-      const newUri = 'https://newURL/cards/';
-
-      await assertRevert(
-        contract.methods.setBaseUrlPath(newUri).send({
-          from: someone
-        })
-      );
-    });
-  });
-
-  describe('Tests Cards Create', function() {
-
-    async function createCard(cardArgs, adminSigner, msgSender) {
+    async function createCard(context, cardArgs, adminSigner, msgSender) {
 
       const createCardHash = createHash(cardArgs);
       const adminSignature = await createSignature(createCardHash, adminSigner);
@@ -284,61 +220,53 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const typedData = getOrderTypedData(
         orderId,
         expiration,
-        tsToken.address, /// The token contract address
+        context.reserveToken.address, /// The token contract address
         cardArgs['cardValue'],  // tokens amount
-        contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
+        context.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
       );
 
       // console.log('typedData', typedData);
 
-      /// PK for someone => account (3)
+      /// PK for someone => account (2)
       const orderSignature = ethSign.signTypedData(
-        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { data: typedData }
+        toBuffer(privateKeys[2]), { data: typedData } //
       );
 
-      return contract.methods.createCard(
+      return context.contract.createCard(
         cardArgs['tokenId'],
         cardArgs['symbol'],
         cardArgs['name'],
-        cardArgs['score'],
         cardArgs['cardValue'],
         createCardHash,
         adminSignature,
         expiration,
         orderId,
-        orderSignature
-      ).send({
-        from: msgSender,
-        gas: 5000000,
-        gasPrice: toWei('10', 'gwei')
-      });
+        orderSignature, {
+          from: msgSender,
+          gasPrice: toWei('10', 'gwei')
+        }
+      );
     }
 
     before(async function() {
-      // Set TConverter Token / Reserve pair
-      await tsToken.methods.mint(tConverter.address, toWei('10000000')).send();
-      await reserveToken.methods.mint(tConverter.address, toWei('120000')).send();
-
       // Mint tokens for card creator
-      await tsToken.methods.mint(someone, toWei('1000000')).send();
+      await this.reserveToken.mint(someone, toWei('1000000'), );
     });
 
     it(`Should OK createCard()`, async function() {
       const tokenId = 1000;
       const cardArgs = createCardArgs(tokenId);
 
-      await createCard(cardArgs, admin, someone);
-
-      const metaUrl = await contract.methods.getCardURL(tokenId).call();
-      metaUrl.should.be.eq(`https://newURL/cards/${tokenId}`);
+      const tx = await createCard(this, cardArgs, admin, someone);
     });
 
     it(`Should FAIL createCard() :: card exists`, async function() {
       const tokenId = 1000;
       const cardArgs = createCardArgs(tokenId);
 
-      await assertRevert(
-        createCard(cardArgs, admin, someone)
+      await expectRevert(
+        createCard(this, cardArgs, admin, someone),
+        'PerformanceCard: card already created.'
       );
     });
 
@@ -346,55 +274,11 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const tokenId = 1001;
       const cardArgs = createCardArgs(tokenId);
 
-      await assertRevert(
-        createCard(cardArgs, anotherone, someone)
+      await expectRevert(
+        createCard(this, cardArgs, anotherone, someone),
+        'PerformanceCard: invalid admin signature'
       );
     });
-  });
-
-  describe('Test Card Score Management', function() {
-
-    const tokenId = 1000;
-    let score = 0;
-
-    it(`should OK getScore()`, async function() {
-      score = await contract.methods.getScore(tokenId).call();
-      score.should.be.eq('500'); /// created token initial score
-    });
-
-    it(`should OK updateScore()`, async function() {
-      const newScore = 3500;
-
-      await contract.methods.updateScore(tokenId, newScore).send({
-        from: admin
-      });
-
-      score = await contract.methods.getScore(tokenId).call();
-      score.should.be.eq('3500');
-    });
-
-    it(`should OK updateScoresBulk()`, async function() {
-      const tokenIds = [tokenId, tokenId];
-      const newScores = [2000, 3000];
-
-      await contract.methods.updateScoresBulk(tokenIds, newScores).send({
-        from: admin
-      });
-
-      score = await contract.methods.getScore(tokenId).call();
-      score.should.be.eq('3000');
-    });
-
-    it(`should FAIL updateScore() :: not admin`, async function() {
-      const newScore = 7000;
-
-      await assertRevert(
-        contract.methods.updateScore(tokenId, newScore).send({
-          from: someone
-        })
-      );
-    });
-
   });
 
   describe('Test purchase / liquidate', function() {
@@ -402,11 +286,9 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
     const tokenId = 1000;
 
     it('Should FAIL :: send eth to contract', async function() {
-      await assertRevert(
-        ZWeb3.sendTransaction({
-          to: contract.address,
-          from: someone,
-          value: toWei('1')
+      await expectRevert.unspecified(
+        this.contract.send(toWei('1'), {
+          from: someone
         })
       );
     })
@@ -415,11 +297,10 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
       const paymentAmount = toWei('10');
 
-      const addr = await fractionableERC721.methods.getBondedERC20(tokenId).call();
-      const bondedToken = BondedERC20.at(addr);
+      const addr = await this.fractionableERC721.getBondedERC20(tokenId)
+      const bondedToken = await BondedERC20.at(addr);
 
-      const tSupply = await bondedToken.methods.balanceOf(someone).call();
-      tSupply.should.be.eq('0');
+      const tSupply = await bondedToken.balanceOf(someone)
 
       /// purchase() and check received tokens == estimation
 
@@ -429,49 +310,50 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const typedData = getOrderTypedData(
         orderId,
         expiration,
-        tsToken.address, /// The token contract address
+        this.reserveToken.address, /// The token contract address
         paymentAmount,  // tokens amount
-        contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
       );
 
-      /// PK for 'someone' -> (account 3)
+      /// PK for 'someone' -> (account 2)
       const orderSignature = ethSign.signTypedData(
-        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { from: someone, data: typedData }
+        toBuffer(privateKeys[2]), { from: someone, data: typedData }
       );
 
-      await contract.methods.purchase(
+      await this.contract.purchase(
         tokenId,
         paymentAmount,
         expiration,
         orderId,
-        orderSignature
-      ).send({
-        from: someone,
-        gas: 5000000
-      });
+        orderSignature, {
+          from: someone
+        }
+      );
 
-      const newSupply = await bondedToken.methods.balanceOf(someone).call();
-      newSupply.should.be.not.eq('0');
+      const newSupply = await bondedToken.balanceOf(someone)
+
+      // TODO: Change
+      expect(newSupply).to.be.not.eq.BN('0');
     });
 
     it(`Should OK liquidate()`, async function() {
 
-      const addr = await fractionableERC721.methods.getBondedERC20(tokenId).call();
-      const bondedToken = BondedERC20.at(addr);
+      const addr = await this.fractionableERC721.getBondedERC20(tokenId)
+      const bondedToken = await BondedERC20.at(addr);
 
       /// Sell all balance
-      const tSupply = await bondedToken.methods.balanceOf(someone).call();
+      const tSupply = await bondedToken.balanceOf(someone)
 
-      await contract.methods.liquidate(
+      await this.contract.liquidate(
         tokenId,
-        tSupply
-      ).send({
-        from: someone,
-        gas: 5000000
-      });
+        tSupply, {
+          from: someone
+        }
+      );
 
-      const value = await bondedToken.methods.balanceOf(someone).call();
-      value.should.be.eq('0');
+      const value = await bondedToken.balanceOf(someone)
+
+      expect(value).to.be.eq.BN('0');
     });
 
   });
@@ -483,11 +365,11 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
 
       const paymentAmount = toWei('10');
 
-      const addr = await fractionableERC721.methods.getBondedERC20(tokenId).call();
-      const bondedToken = BondedERC20.at(addr);
+      const addr = await this.fractionableERC721.getBondedERC20(tokenId)
+      const bondedToken = await BondedERC20.at(addr);
 
-      const tSupply = await bondedToken.methods.balanceOf(someone).call();
-      tSupply.should.be.eq('0');
+      const tSupply = await this.reserveToken.balanceOf(someone)
+      expect(tSupply).to.be.gte.BN(paymentAmount)
 
       /// purchase() and check received tokens == estimation
 
@@ -497,27 +379,29 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       const typedData = getOrderTypedData(
         orderId,
         expiration,
-        tsToken.address, /// The token contract address
+        this.reserveToken.address, /// The token contract address
         paymentAmount,  // tokens amount
-        contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
       );
 
-      /// PK for 'someone' -> (account 3)
+      /// PK for 'someone' -> (account 2)
       const orderSignature = ethSign.signTypedData(
-        toBuffer('0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913'), { from: someone, data: typedData }
+        toBuffer(privateKeys[2]), { from: someone, data: typedData }
       );
 
-      const abiEncoded = contract.methods.purchase(
+      const abiEncoded = this.contract.contract.methods.purchase(
         tokenId,
         paymentAmount,
         expiration,
         orderId,
-        orderSignature
-      ).encodeABI();
+        orderSignature,
+      ).encodeABI()
 
       /// Test relay
+
       const nonce = 10000;
       const signer = someone;
+
       const orderHash = soliditySha3(
         { t: 'uint256', v: nonce },
         { t: 'address', v: signer },
@@ -525,31 +409,36 @@ contract('PerformanceCard', ([_, owner, admin, someone, anotherone, buyer1, buye
       );
 
       // relay tx
+
       const orderHashSignature = await createSignature(orderHash, signer);
-      const ordedEncoded = contract.methods.executeRelayedTx(
+      const ordedEncoded = this.contract.contract.methods.executeRelayedTx(
         nonce,
         signer,
         abiEncoded,
         orderHashSignature
       ).encodeABI();
 
-      let txParams = {};
-      txParams.data = ordedEncoded;
-      txParams.to = contract.address;
-      txParams.gas = 5e6; //
-      txParams.gasPrice = String(5e9);
-      txParams.chainId = await web3.eth.net.getId();
-      txParams.nonce = await web3.eth.getTransactionCount(signer);
+      const txParams = {
+        data: ordedEncoded,
+        to: this.contract.address,
+        gas: 5e6, // 5mwei
+        gasPrice: String(5e9), // 5gwei
+        //
+        chainId: await web3.eth.net.getId(),
+        nonce: await web3.eth.getTransactionCount(signer),
+      }
 
-      /// PK for 'signer' -> (account 3)
+      /// PK for 'signer' -> (account 2)
       const signedTx = await web3.eth.accounts.signTransaction(
-        txParams, '0x646f1ce2fdad0e6deeeb5c7e8e5543bdde65e86029e2fd9fc169899c440a7913');
+        txParams, privateKeys[2]
+      );
 
       // Send Tx
       await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
-      const newSupply = await bondedToken.methods.balanceOf(signer).call();
-      newSupply.should.be.not.eq('0');
+      const newSupply = await this.reserveToken.balanceOf(signer)
+
+      expect(newSupply).to.be.not.eq.BN('0');
     });
 
   });

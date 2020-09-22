@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
 import "./IFractionableERC721.sol";
@@ -5,22 +7,21 @@ import "./IFractionableERC721.sol";
 import "../bondedERC20/IBondedERC20Helper.sol";
 import "../bondedERC20/IBondedERC20Transfer.sol";
 
-import "../lib/Strings.sol";
 import "../lib/ERC20Manager.sol";
 
-import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 
 contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC20Transfer {
 
-    /// Helper contract for ERC20 transactions.
+    // Helper contract for ERC20 transactions.
     IBondedERC20Helper private bondedHelper;
 
-    /// Fungible tokens map
+    // Fungible tokens map
     mapping(uint256 => address) private fungiblesMap;
 
-    /// Token Manager allowed address
+    // Token Manager allowed address
     address private tokenManager;
 
     /**
@@ -31,17 +32,13 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         _;
     }
 
-    function initialize(
-        address _owner,
+    constructor(
         address _bondedHelper,
         string memory _name,
         string memory _symbol
     )
-        public initializer
+        public Ownable() ERC721(_name, _symbol)
     {
-        Ownable.initialize(_owner);
-        ERC721.initialize(_name, _symbol);
-
         // Sets address for helper functions
         bondedHelper = IBondedERC20Helper(_bondedHelper);
     }
@@ -73,7 +70,10 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
     )
         public onlyOwner
     {
-        require(fungiblesMap[_tokenId] != address(0), "invalid _tokenId");
+        require(
+            fungiblesMap[_tokenId] != address(0),
+            "FractionableERC721: invalid _tokenId"
+        );
 
         ERC20Manager.setReserveRatio(
             fungiblesMap[_tokenId],
@@ -90,11 +90,14 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         address _to,
         uint256 _amount
     )
-        public
+        public override
     {
-        require(msg.sender == fungiblesMap[_tokenId], "Invalid tokenId");
+        require(
+            msg.sender == fungiblesMap[_tokenId],
+            "FractionableERC721: Invalid tokenId"
+        );
 
-        /// Log BondedERC20 transfer on this contract.
+        // Log BondedERC20 transfer on this contract.
         emit TransferBondedERC20(_tokenId, _from, _to, _amount, 0);
     }
 
@@ -111,16 +114,15 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         string memory _symbol,
         string memory _name
     )
-        public onlyTokenManager
+        public override onlyTokenManager
     {
         _mint(_beneficiary, _tokenId);
 
-        /// Create ERC20 BondedERC20
+        // Create ERC20 BondedERC20
         fungiblesMap[_tokenId] = ERC20Manager.deploy(
             _name,
             _symbol,
-            _tokenId,
-            address(this)
+            _tokenId
         );
     }
 
@@ -137,7 +139,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _amount,
         uint256 _value
     )
-        public onlyTokenManager
+        public override onlyTokenManager
     {
         ERC20Manager.mint(
             fungiblesMap[_tokenId],
@@ -162,7 +164,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _amount,
         uint256 _value
     )
-        public onlyTokenManager
+        public override onlyTokenManager
     {
         ERC20Manager.burn(
             fungiblesMap[_tokenId],
@@ -184,7 +186,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _tokenId,
         uint256 _value
     )
-        public view onlyTokenManager returns (uint256)
+        public view override returns (uint256)
     {
         address token_ = fungiblesMap[_tokenId];
 
@@ -208,11 +210,14 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _tokenId,
         uint256 _amount
     )
-        public view onlyTokenManager returns (uint256)
+        public view override returns (uint256)
     {
         address token_ = fungiblesMap[_tokenId];
 
-        require(_amount <= ERC20Manager.totalSupply(token_), "amount is > than contract total supply");
+        require(
+            _amount <= ERC20Manager.totalSupply(token_),
+            "FractionableERC721: amount is > than contract total supply"
+        );
 
         uint256 value = bondedHelper.calculateSaleReturn(
             ERC20Manager.totalSupply(token_),
@@ -228,7 +233,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
      * @dev Get bonded ERC-20 contract address for a provided tokenId
      * @param _tokenId NFT token id
      */
-    function getBondedERC20(uint256 _tokenId) public view returns (address) {
+    function getBondedERC20(uint256 _tokenId) public view override returns (address) {
         return fungiblesMap[_tokenId];
     }
 }

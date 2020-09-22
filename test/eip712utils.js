@@ -1,3 +1,5 @@
+const { web3 } = require('@openzeppelin/test-environment')
+
 /**
  * @param orderId a unique number for the order
  * @param expiration expiration ts of the order
@@ -5,7 +7,7 @@
  * @param tokenIdOrAmount amount or tokenId in case of calling a ERC721 implementing ERC721 contract
  * @param spenderAddress should be the address of the calling contract
  */
-export function getOrderTypedData(
+function getOrderTypedData(
   orderId,
   expiration,
   tokenAddress,
@@ -52,3 +54,5 @@ export function getOrderTypedData(
     },
   };
 }
+
+module.exports = { getOrderTypedData }

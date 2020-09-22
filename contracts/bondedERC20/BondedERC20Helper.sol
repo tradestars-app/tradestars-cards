@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+
 pragma solidity ^0.6.8;
 
-import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * Based on https://github.com/bancorprotocol/contracts/blob/master/solidity/contracts/converter/BancorFormula.sol

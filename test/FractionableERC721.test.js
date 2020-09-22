@@ -1,65 +1,58 @@
-const { TestHelper } = require('@openzeppelin/cli');
-const { Contracts, ZWeb3, assertRevert } = require('@openzeppelin/upgrades');
+const { accounts, contract } = require('@openzeppelin/test-environment');
+
+const {
+  BN,
+  expectEvent, // Assertions for emitted events
+  expectRevert, // Assertions for transactions that should fail
+} = require('@openzeppelin/test-helpers');
 
 const { toWei } = require('web3-utils');
 
-ZWeb3.initialize(web3.currentProvider);
+const BondedERC20 = contract.fromArtifact('BondedERC20');
+const BondedHelper = contract.fromArtifact('BondedERC20Helper');
+const FractionableERC721 = contract.fromArtifact('FractionableERC721');
 
-console.log('Confirmations', web3.eth.transactionConfirmationBlocks);
+const expect = require('chai')
+  .use(require('bn-chai')(BN))
+  .expect
 
-require('chai').should();
+describe('FractionableERC721', function () {
 
-const BondedERC20 = Contracts.getFromLocal('BondedERC20');
-
-const BondedHelper = Contracts.getFromLocal('BondedERC20Helper');
-const FractionableERC721 = Contracts.getFromLocal('FractionableERC721');
-
-/// check events
-function checkEventName(tx, eventName) {
-  tx.events[eventName].event.should.be.eq(eventName);
-}
-
-contract('FractionableERC721', ([_, owner, tokenManager, someone]) => {
-
-  let contract;
+  const [ owner, someone, tokenManager ] = accounts;
 
   before(async function() {
-    const project = await TestHelper();
 
     /// Create and initialize a fractionableERC721
-    const bondedHelper = await BondedHelper.new({ gas: 5000000, from: owner });
-    const fractionableERC721 = await FractionableERC721.new({ gas: 5000000, from: owner });
+    const bondedHelper = await BondedHelper.new({ from: owner });
 
-    // Create new PerformanceCard registry
-    contract = await project.createProxy(fractionableERC721, {
-      initMethod: 'initialize',
-      initArgs: [
-        owner,
-        bondedHelper.address,
-        "name",
-        "symbol"
-      ]
-    });
+    this.contract = await FractionableERC721.new(
+      bondedHelper.address,
+      "name",
+      "symbol", {
+        from: owner
+      }
+    );
   });
 
-  describe('Tests token config calls', function() {
+  describe('tokenManager', function() {
 
-    it(`Should OK setTokenManager()`, async function() {
-      await contract.methods.setTokenManager(tokenManager).send({
+    it(`is set OK`, async function() {
+      await this.contract.setTokenManager(tokenManager, {
         from: owner
       })
     });
 
-    it(`Should FAIL setTokenManager() :: not owner`, async function() {
-      await assertRevert(
-        contract.methods.setTokenManager(tokenManager).send({
+    it(`Fail to set :: not owner`, async function() {
+      await expectRevert(
+        this.contract.setTokenManager(tokenManager, {
           from: someone
-        })
+        }),
+        'Ownable: caller is not the owner'
       );
     });
   });
 
-  describe('Tests Create / Update calls', function() {
+  describe('Creating the NFT', function() {
 
     const newToken = {
       tokenId: 1000,
@@ -68,137 +61,140 @@ contract('FractionableERC721', ([_, owner, tokenManager, someone]) => {
       name: "name"
     }
 
-    it(`Should OK mintToken()`, async function() {
-      const tx = await contract.methods.mintToken(
+    it(`Mints OK called from tokenManager`, async function() {
+      const tx = await this.contract.mintToken(
         newToken['tokenId'],
         newToken['beneficiary'],
         newToken['symbol'],
-        newToken['name']
-      ).send({
-        from: tokenManager,
-        gas: 5000000
-      });
-
-      checkEventName(tx, 'Transfer');
+        newToken['name'],
+        {
+          from: tokenManager,
+        }
+      );
+      expectEvent(tx, 'Transfer');
     });
 
-    it(`Should FAIL mintToken() :: not tokenManager`, async function() {
-      await assertRevert(
-        contract.methods.mintToken(
+    it(`Fails if called from non tokenManager`, async function() {
+      await expectRevert(
+        this.contract.mintToken(
           newToken['tokenId'],
           newToken['beneficiary'],
           newToken['symbol'],
-          newToken['name']
-        ).send({
-          from: owner,
-          gas: 5000000
-        })
-      );
-    });
-
-    it(`Should OK setBondedTokenReserveRatio()`, async function() {
-      const reserveRatio = '222222';
-
-      await contract.methods.setBondedTokenReserveRatio(
-        newToken['tokenId'],
-        reserveRatio
-      ).send({
-        from: owner,
-        gas: 5000000
-      })
-    });
-
-    it(`Should FAIL setBondedTokenReserveRatio() :: not owner`, async function() {
-      const reserveRatio = '222222';
-
-      await assertRevert(
-        contract.methods.setBondedTokenReserveRatio(
-          newToken['tokenId'],
-          reserveRatio
-        ).send({
-          from: tokenManager,
-          gas: 5000000
-        })
+          newToken['name'],
+          {
+            from: owner
+          }
+        ),
+        'msg.sender is not tokenManager'
       );
     });
   });
 
-  describe('Tests Mint / Burn BondedToken', function() {
+  describe('Changing token reserve ratio', function() {
+
+    it(`Changes OK called from owner`, async function() {
+      const tokenId = 1000;
+      const reserveRatio = '222222';
+
+      await this.contract.setBondedTokenReserveRatio(
+        tokenId,
+        reserveRatio,
+        {
+          from: owner
+        }
+      )
+    });
+
+    it(`Fails if called by non owner :: not owner`, async function() {
+      const tokenId = 1000;
+      const reserveRatio = '222222';
+
+      await expectRevert(
+        this.contract.setBondedTokenReserveRatio(
+          tokenId,
+          reserveRatio,
+          {
+            from: tokenManager
+          }
+        ),
+        'Ownable: caller is not the owner'
+      );
+    });
+
+  });
+
+  describe('Minting bonded tokens', function() {
     const tokenId = 1000;
 
-    it(`Should OK mintBondedERC20()`, async function() {
+    it(`Mints OK called from tokenManager`, async function() {
 
       const mintAmount = toWei('100');
       const mintValue = toWei('100');
 
-      const txHash = await new Promise((resolve, reject) => {
-        contract.methods.mintBondedERC20(
-          tokenId,
-          someone,
-          mintAmount,
-          mintValue
-        ).send({
-          from: tokenManager,
-          gas: 5000000
-        })
-        .on('transactionHash', (x) => { resolve(x); })
-        .catch((err) => { reject(err); })
-      });
+      const txHash = await this.contract.mintBondedERC20(
+        tokenId,
+        someone,
+        mintAmount,
+        mintValue,
+        {
+          from: tokenManager
+        }
+      )
 
-      await web3.eth.getTransactionReceipt(txHash);
+      const addr = await this.contract.getBondedERC20(tokenId)
+      const bondedToken = await BondedERC20.at(addr);
 
+      const tSupply = await bondedToken.poolBalance()
+      const pBalance = await bondedToken.poolBalance()
+
+      expect(
+        tSupply,
+        'total supply should be 100 eth'
+      ).to.be.eq.BN(mintAmount);
+
+      expect(
+        pBalance,
+        'pool balance should be 100 eth'
+      ).to.be.eq.BN(mintValue);
     });
 
-    it(`Should OK BondedERC20 balances == (100)`, async function() {
-      const addr = await contract.methods.getBondedERC20(tokenId).call();
-      const bondedToken = BondedERC20.at(addr);
-
-      const tSupply = await bondedToken.methods.poolBalance().call();
-      const pBalance = await bondedToken.methods.poolBalance().call();
-
-      tSupply.should.be.eq(toWei('100'));
-      pBalance.should.be.eq(toWei('100'));
-    });
-
-    it(`Should OK burnBondedERC20()`, async function() {
+    it(`Burns OK called from tokenManager`, async function() {
 
       const burnAmount = toWei('100');
       const burnValue = toWei('100');
 
-      const txHash = await new Promise((resolve, reject) => {
-        contract.methods.burnBondedERC20(
-          tokenId,
-          someone,
-          burnAmount,
-          burnValue
-        ).send({
-          from: tokenManager,
-          gas: 5000000
-        })
-        .on('transactionHash', (x) => { resolve(x); })
-        .catch((err) => { reject(err); })
-      });
+      const txHash = await this.contract.burnBondedERC20(
+        tokenId,
+        someone,
+        burnAmount,
+        burnValue,
+        {
+          from: tokenManager
+        }
+      )
 
-      await web3.eth.getTransactionReceipt(txHash);
+      const addr = await this.contract.getBondedERC20(tokenId)
+      const bondedToken = await BondedERC20.at(addr);
 
-    });
+      const tSupply = await bondedToken.poolBalance()
+      const pBalance = await bondedToken.poolBalance()
 
-    it(`Should OK BondedERC20 balances == (0)`, async function() {
-      const addr = await contract.methods.getBondedERC20(tokenId).call();
-      const bondedToken = BondedERC20.at(addr);
+      expect(
+        tSupply,
+        'total supply should be 0'
+      ).to.be.eq.BN(0);
 
-      const tSupply = await bondedToken.methods.poolBalance().call();
-      const pBalance = await bondedToken.methods.poolBalance().call();
-
-      tSupply.should.be.eq('0');
-      pBalance.should.be.eq('0');
+      expect(
+        pBalance,
+        'pool balance should be 0'
+      ).to.be.eq.BN(0);
     });
 
   });
 
 
-  describe('Tests estimations', function() {
-    const tokenId = 1000;
+  describe('Trading estimations', function() {
+    const tokenId = '1000';
 
     before(async function() {
 
@@ -207,59 +203,55 @@ contract('FractionableERC721', ([_, owner, tokenManager, someone]) => {
       const mintAmount = toWei('100');
       const mintValue = toWei('100');
 
-      const txHash = await new Promise((resolve, reject) => {
-        contract.methods.mintBondedERC20(
-          tokenId,
-          someone,
-          mintAmount,
-          mintValue
-        ).send({
-          from: tokenManager,
-          gas: 5000000
-        })
-        .on('transactionHash', (x) => { resolve(x); })
-        .catch((err) => { reject(err); })
-      });
-
-      await web3.eth.getTransactionReceipt(txHash);
+      const txHash = await this.contract.mintBondedERC20(
+        tokenId,
+        someone,
+        mintAmount,
+        mintValue,
+        {
+          from: tokenManager
+        }
+      );
 
       /// set reserve ratio 1/1 for next tests
 
       const reserveRatio = '1000000';
 
-      await contract.methods.setBondedTokenReserveRatio(
+      await this.contract.setBondedTokenReserveRatio(
         tokenId,
-        reserveRatio
-      ).send({
-        from: owner,
-        gas: 5000000
-      });
+        reserveRatio,
+        {
+          from: owner
+        }
+      );
     });
 
-    it(`Should OK estimateBondedERC20Tokens()`, async function() {
+    it(`OK calling estimateBondedERC20Tokens()`, async function() {
       const value = toWei('100');
 
-      const ret = await contract.methods.estimateBondedERC20Tokens(
+      const ret = await this.contract.estimateBondedERC20Tokens(
         tokenId,
         value
-      ).call({
-        from: tokenManager
-      });
+      );
 
-      ret.should.be.equal(value);
+      expect(
+        ret,
+        'token amount invalid'
+      ).to.be.eq.BN(value);
     });
 
-    it(`Should OK estimateBondedERC20Value()`, async function() {
+    it(`OK calling estimateBondedERC20Value()`, async function() {
       const amount = toWei('100');
 
-      const ret = await contract.methods.estimateBondedERC20Value(
+      const ret = await this.contract.estimateBondedERC20Value(
         tokenId,
         amount
-      ).call({
-        from: tokenManager
-      });
+      );
 
-      ret.should.be.equal(amount);
+      expect(
+        ret,
+        'reserve value invalid'
+      ).to.be.eq.BN(amount);
     });
   });
 });

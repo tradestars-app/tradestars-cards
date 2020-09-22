@@ -1,10 +1,8 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
 interface ICard {
-
-    function getBondedERC20(uint256 _tokenId) external view returns (address);
-    function getCardURL(uint256 _tokenId) external view returns (string memory);
-    function getScore(uint256 _tokenId) external view returns (uint256);
 
     function swap(
         uint256 _tokenId,

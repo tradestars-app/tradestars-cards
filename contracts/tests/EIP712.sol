@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
 contract LibEIP712Domain {
@@ -39,7 +41,7 @@ contract LibEIP712Domain {
             let memPtr := mload(64)
 
             mstore(memPtr, 0x1901000000000000000000000000000000000000000000000000000000000000)  // EIP191 header
-            mstore(add(memPtr, 2), domainHash)                                          // EIP712 domain hash
+            mstore(add(memPtr, 2), domainHash)                                                  // EIP712 domain hash
             mstore(add(memPtr, 34), hashStruct)                                                 // Hash of struct
 
             // Compute hash

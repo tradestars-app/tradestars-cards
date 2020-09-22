@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
-import "@openzeppelin/contracts-ethereum-package/contracts/ownership/Ownable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 contract Administrable is Ownable {
     using ECDSA for bytes32;
@@ -13,7 +15,7 @@ contract Administrable is Ownable {
     mapping(address => bool) private adminsMap;
 
     modifier onlyAdmin {
-        require(adminsMap[msg.sender], "sender is not admin");
+        require(adminsMap[msg.sender], "Administrable: sender is not admin");
         _;
     }
 
@@ -22,8 +24,8 @@ contract Administrable is Ownable {
      * @param _wallet address of new admin
      */
     function addAdmin(address _wallet) external onlyOwner {
-        require(_wallet != address(0), "invalid wallet address");
-        require(!isAdmin(_wallet), "wallet already admin");
+        require(_wallet != address(0), "Administrable: invalid wallet address");
+        require(!isAdmin(_wallet), "Administrable: wallet already admin");
 
         adminsMap[_wallet] = true;
 
@@ -35,8 +37,8 @@ contract Administrable is Ownable {
      * @param _wallet address revoke admin role
      */
     function removeAdmin(address _wallet) external onlyOwner {
-        require(_wallet != address(0), "invalid wallet address");
-        require(isAdmin(_wallet), "wallet is not admin");
+        require(_wallet != address(0), "Administrable: invalid wallet address");
+        require(isAdmin(_wallet), "Administrable: wallet is not admin");
 
         adminsMap[_wallet] = false;
 
@@ -47,11 +49,6 @@ contract Administrable is Ownable {
         adminsMap[msg.sender] = false;
 
         emit AdminRemoved(msg.sender);
-    }
-
-    // Initializable
-    function initialize(address _sender) public initializer {
-        Ownable.initialize(_sender);
     }
 
     /**

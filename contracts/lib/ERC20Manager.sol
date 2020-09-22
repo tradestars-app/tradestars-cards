@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
 import "../bondedERC20/BondedERC20.sol";
@@ -8,16 +10,14 @@ library ERC20Manager {
     function deploy(
         string memory _symbol,
         string memory _name,
-        uint256 _tokenId,
-        address _owner
+        uint256 _tokenId
     )
         internal returns(address)
     {
         BondedERC20 newContract = new BondedERC20(
             _name,
             _symbol,
-            _tokenId,
-            _owner
+            _tokenId
         );
 
         return address(newContract);

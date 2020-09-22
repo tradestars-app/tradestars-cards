@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.8;
 
 import "./ICard.sol";
 
-import "../lib/Strings.sol";
 import "../lib/ERC20Manager.sol";
 
 import "../utils/Administrable.sol";
@@ -10,12 +11,14 @@ import "../utils/GasPriceLimited.sol";
 
 import "../fractionable/IFractionableERC721.sol";
 
-import "@openzeppelin/contracts-ethereum-package/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-/// Simple
+import "@openzeppelin/upgrades/contracts/Initializable.sol";
+
+// Simple
 interface EIP712 {
     function transferWithSig(
         bytes calldata sig,
@@ -26,38 +29,35 @@ interface EIP712 {
     ) external returns (address);
 }
 
-/// Simple ERC721 interface
+// Simple ERC721 interface
 
 interface IERC721Simple {
     function ownerOf(uint256 tokenId) external view returns (address owner);
 }
 
-/// Main Contract
+// Main Contract
 
-contract PerformanceCard is Administrable, ICard, GasPriceLimited {
+contract PerformanceCard is Initializable, Administrable, ICard, GasPriceLimited {
 
     using ECDSA for bytes32;
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    /// .0001 precision.
+    // .0001 precision.
     uint32 public constant MATH_PRECISION = 1e4;
 
-    /// Constant values for creating bonded ERC20 tokens.
+    // Constant values for creating bonded ERC20 tokens.
     uint256 public constant ERC20_INITIAL_SUPPLY = 100000e18; // 100000 units
     uint256 public constant ERC20_INITIAL_POOL_SHARE = 250; // 2.5%
     uint256 public constant PLATFORM_CUT = 250; // 2.5%
 
-    /// Reserve Token.
+    // Reserve Token.
     IERC20 private reserveToken;
 
-    /// Converter
+    // Registry
     IFractionableERC721 private nftRegistry;
 
-    /// Base card URI metadata.
-    string public baseUrlPath;
-
-    /// Relayed signatures map
+    // Relayed signatures map
     mapping(bytes => bool) private relayedSignatures;
 
     /**
@@ -66,18 +66,15 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      * @param _reserveToken - Reserve registry address
      */
      function initialize(
-        address _owner,
         address _nftRegistry,
         address _reserveToken
     )
         public initializer
     {
-        Administrable.initialize(_owner);
-
-        /// Set Reseve Token addresses
+        // Set Reseve Token addresses
         reserveToken = IERC20(_reserveToken);
 
-        /// Set the NFT Registry
+        // Set the NFT Registry
         nftRegistry = IFractionableERC721(_nftRegistry);
     }
 
@@ -101,7 +98,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: Invalid _orderSignature"
         );
 
-        /// Check hashed message & signature
+        // Check hashed message & signature
         bytes32 _hash = keccak256(
             abi.encodePacked(_nonce, _signer, _abiEncoded)
         );
@@ -114,14 +111,26 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         relayedSignatures[_orderHashSignature] = true;
 
         // Append signer address at the end to extract it from calling context
-        (bool success, bytes memory returnData) = address(this).call(
-            abi.encodePacked(
-                _abiEncoded, _signer
-            )
+        (bool success, bytes memory returndata) = address(this).call(
+            abi.encodePacked(_abiEncoded, _signer)
         );
-        require(success, "PerformanceCard: Function call error");
 
-        return returnData;
+        if (success) {
+            return returndata;
+        }
+
+        // Look for revert reason and bubble it up if present
+        if (returndata.length > 0) {
+
+            // solhint-disable-next-line no-inline-assembly
+            assembly {
+                let returndata_size := mload(returndata)
+                revert(add(32, returndata), returndata_size)
+            }
+
+        } else {
+            revert("PerformanceCard: error in call()");
+        }
     }
 
     /**
@@ -129,7 +138,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      * @param _tokenId card id
      * @param _symbol card symbol
      * @param _name card name
-     * @param _cardValue creation value for the card
+     * @param _reserveAmount creation value for the card
      * @param _msgHash hash of card parameters
      * @param _signature admin signature
      */
@@ -140,7 +149,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _reserveAmount,
         bytes32 _msgHash,
         bytes memory _signature,
-        /// These are required for EIP712
+        // These are required for EIP712
         uint256 _expiration,
         bytes32 _orderId,
         bytes memory _orderSignature
@@ -152,9 +161,9 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: card already created"
         );
 
-        /// Check hashed message & admin signature
+        // Check hashed message & admin signature
         bytes32 checkHash = keccak256(
-            abi.encodePacked(_tokenId, _symbol, _name, _score, _reserveAmount)
+            abi.encodePacked(_tokenId, _symbol, _name, _reserveAmount)
         );
 
         require(
@@ -167,11 +176,11 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: invalid admin signature"
         );
 
-        /// Check the sender has the required sTSX balance
+        // Check the sender has the required sTSX balance
         _requireBalance(msgSender(), reserveToken, _reserveAmount);
 
-        /// Transfer sTSX _reserveAmount from caller account to this contract using EIP712 signature
-        EIP712(address(_reserveToken)).transferWithSig(
+        // Transfer sTSX _reserveAmount from caller account to this contract using EIP712 signature
+        EIP712(address(reserveToken)).transferWithSig(
             _orderSignature,
             _reserveAmount,
             keccak256(
@@ -181,12 +190,12 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             address(this)
         );
 
-        /// Create NFT
-        /// - The NFT owner is platform owner
-        /// - The ERC20_INITIAL_SUPPLY is for msgSender()
-        ///
+        // Create NFT
+        // - The NFT owner is platform owner
+        // - The ERC20_INITIAL_SUPPLY is for msgSender()
+        //
         nftRegistry.mintToken(_tokenId, owner(), _symbol, _name);
-        nftRegistry.mintBondedERC20(_tokenId, msgSender(), ERC20_INITIAL_SUPPLY, reserveAmount);
+        nftRegistry.mintBondedERC20(_tokenId, msgSender(), ERC20_INITIAL_SUPPLY, _reserveAmount);
     }
 
     /**
@@ -200,7 +209,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _amount,
         uint256 _destTokenId
     )
-        public gasPriceLimited
+        public override gasPriceLimited
     {
         require(
             nftRegistry.getBondedERC20(_tokenId) != address(0),
@@ -222,7 +231,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             reserveAmount
         );
 
-        /// Burn selled tokens and mint buyed
+        // Burn selled tokens and mint buyed
         nftRegistry.burnBondedERC20(_tokenId, msgSender(), _amount, reserveAmount);
         nftRegistry.mintBondedERC20(_destTokenId, msgSender(), estimatedTokens, reserveAmount);
     }
@@ -238,7 +247,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _amount,
         uint256 _destTokenId
     )
-        public view returns (uint expectedRate, uint slippageRate)
+        public view override returns (uint expectedRate, uint slippageRate)
     {
         require(
             nftRegistry.getBondedERC20(_tokenId) != address(0),
@@ -250,13 +259,13 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: destTokenId does not exist"
         );
 
-        /// get reserve amount from selling _amount of tokenId
+        // get reserve amount from selling _amount of tokenId
         uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(
             _tokenId,
             _amount
         );
 
-        /// Get amount of _destTokenId tokens
+        // Get amount of _destTokenId tokens
         uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
             _destTokenId,
             reserveAmount
@@ -264,7 +273,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
-        /// Return the expected exchange rate and slippage in 1e18 precision
+        // Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = estimatedTokens.mul(1e18).div(_amount);
         slippageRate = reserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
@@ -283,47 +292,47 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         bytes32 _orderId,
         bytes memory _orderSignature
     )
-        public gasPriceLimited
+        public override gasPriceLimited
     {
-        require(
-            nftRegistry.getBondedERC20(_tokenId) != address(0),
-            "PerformanceCard: tokenId does not exist"
-        );
+        // require(
+        //     nftRegistry.getBondedERC20(_tokenId) != address(0),
+        //     "PerformanceCard: tokenId does not exist"
+        // );
 
-        /// Check the sender has the required sTSX balance
-        _requireBalance(msgSender(), reserveToken, _paymentAmount);
+        // // Check the sender has the required sTSX balance
+        // _requireBalance(msgSender(), reserveToken, _paymentAmount);
 
-        /// Transfer sTSX amount to this contract using EIP712 signature
-        EIP712(address(reserveToken)).transferWithSig(
-            _orderSignature,
-            _paymentAmount,
-            keccak256(
-                abi.encodePacked(_orderId, address(reserveToken), _paymentAmount)
-            ),
-            _expiration,
-            address(this)
-        );
+        // // Transfer sTSX amount to this contract using EIP712 signature
+        // EIP712(address(reserveToken)).transferWithSig(
+        //     _orderSignature,
+        //     _paymentAmount,
+        //     keccak256(
+        //         abi.encodePacked(_orderId, address(reserveToken), _paymentAmount)
+        //     ),
+        //     _expiration,
+        //     address(this)
+        // );
 
-        /// transfer platform cut.
-        uint256 pFee = reserveAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
-        reserveToken.safeTransfer(owner(), pFee);
+        // // transfer platform cut.
+        // uint256 pFee = _paymentAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
+        // reserveToken.safeTransfer(owner(), pFee);
 
-        /// Get effective amount after tx fees
-        uint256 effectiveReserveAmount = reserveAmount.sub(pFee);
+        // // Get effective amount after tx fees
+        // uint256 effectiveReserveAmount = _paymentAmount.sub(pFee);
 
-        /// The estimated amount of bonded tokens for reserve
-        uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
-            _tokenId,
-            effectiveReserveAmount
-        );
+        // // The estimated amount of bonded tokens for reserve
+        // uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
+        //     _tokenId,
+        //     effectiveReserveAmount
+        // );
 
-        /// Issue fractionables to msg sender.
-        nftRegistry.mintBondedERC20(
-            _tokenId,
-            msgSender(),
-            estimatedTokens,
-            effectiveReserveAmount
-        );
+        // // Issue fractionables to msg sender.
+        // nftRegistry.mintBondedERC20(
+        //     _tokenId,
+        //     msgSender(),
+        //     estimatedTokens,
+        //     effectiveReserveAmount
+        // );
     }
 
     /**
@@ -335,30 +344,20 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _tokenId,
         uint256 _paymentAmount
     )
-        public view returns (uint expectedRate, uint slippageRate)
+        public view override returns (uint expectedRate, uint slippageRate)
     {
         require(
             nftRegistry.getBondedERC20(_tokenId) != address(0),
             "PerformanceCard: tokenId does not exist"
         );
 
-        /// Get rate
-        uint256 exchangeRate = tConverter.getExpectedRate(
-            address(reserveToken),
-            address(reserveToken),
-            _paymentAmount
-        );
+        // Calc fees
+        uint256 pFees = _paymentAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
 
-        /// Divide by CONVERT_PRECISION
-        uint256 reserveAmount = _paymentAmount.mul(exchangeRate).div(1e18);
+        // Get effective amount after tx fees
+        uint256 effectiveReserveAmount = _paymentAmount.sub(pFees);
 
-        /// Calc fees
-        uint256 pFees = reserveAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
-
-        /// Get effective amount after tx fees
-        uint256 effectiveReserveAmount = reserveAmount.sub(pFees);
-
-        /// Get estimated amount of _tokenId for effectiveReserveAmount
+        // Get estimated amount of _tokenId for effectiveReserveAmount
         uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
             _tokenId,
             effectiveReserveAmount
@@ -366,7 +365,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
-        /// Return the expected exchange rate and slippage in 1e18 precision
+        // Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = estimatedTokens.mul(1e18).div(_paymentAmount);
         slippageRate = effectiveReserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
@@ -382,20 +381,20 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _tokenId,
         uint256 _liquidationAmount
     )
-        public gasPriceLimited
+        public override gasPriceLimited
     {
         require(
             nftRegistry.getBondedERC20(_tokenId) != address(0),
             "PerformanceCard: tokenId does not exist"
         );
 
-        /// Estimate reserve for selling _tokenId
+        // Estimate reserve for selling _tokenId
         uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(
             _tokenId,
             _liquidationAmount
         );
 
-        /// Burn selled tokens.
+        // Burn selled tokens.
         nftRegistry.burnBondedERC20(
             _tokenId,
             msgSender(),
@@ -403,7 +402,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             reserveAmount
         );
 
-        /// Trade reserve to sTSX and send to liquidator
+        // Trade reserve to sTSX and send to liquidator
         reserveToken.safeTransfer(msgSender(), reserveAmount);
     }
 
@@ -416,32 +415,21 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _tokenId,
         uint256 _liquidationAmount
     )
-        public view returns (uint expectedRate, uint slippageRate)
+        public view override returns (uint expectedRate, uint slippageRate)
     {
         require(
             nftRegistry.getBondedERC20(_tokenId) != address(0),
             "PerformanceCard: tokenId does not exist"
         );
 
+        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
         uint256 reserveAmount = nftRegistry.estimateBondedERC20Value(
             _tokenId,
             _liquidationAmount
         );
 
-        /// Get rate
-        uint256 exchangeRate = tConverter.getExpectedRate(
-            address(reserveToken),
-            address(reserveToken),
-            reserveAmount
-        );
-
-        /// Divide by CONVERT_PRECISION
-        uint256 estimatedTokens = reserveAmount.mul(exchangeRate).div(1e18);
-
-        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
-
-        /// Return the expected exchange rate and slippage in 1e18 precision
-        expectedRate = _liquidationAmount.mul(1e18).div(estimatedTokens);
+        // Return the expected exchange rate and slippage in 1e18 precision
+        expectedRate = _liquidationAmount.mul(1e18).div(reserveAmount);
         slippageRate = reserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
         );
