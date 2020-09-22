@@ -287,9 +287,7 @@ describe('PerformanceCard', function () {
 
     it('Should FAIL :: send eth to contract', async function() {
       await expectRevert.unspecified(
-        this.contract.send(toWei('1'), {
-          from: someone
-        })
+        this.contract.send(toWei('1'), { from: someone })
       );
     })
 
