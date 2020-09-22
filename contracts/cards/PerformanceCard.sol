@@ -16,8 +16,6 @@ import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
-
 // Simple
 interface EIP712 {
     function transferWithSig(
@@ -37,7 +35,7 @@ interface IERC721Simple {
 
 // Main Contract
 
-contract PerformanceCard is Initializable, Administrable, ICard, GasPriceLimited {
+contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
     using ECDSA for bytes32;
     using SafeMath for uint256;
@@ -65,11 +63,11 @@ contract PerformanceCard is Initializable, Administrable, ICard, GasPriceLimited
      * @param _nftRegistry - NFT Registry address
      * @param _reserveToken - Reserve registry address
      */
-     function initialize(
+     constructor(
         address _nftRegistry,
         address _reserveToken
     )
-        public initializer
+        public
     {
         // Set Reseve Token addresses
         reserveToken = IERC20(_reserveToken);

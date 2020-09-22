@@ -90,9 +90,7 @@ describe('PerformanceCard', function () {
       }
     );
 
-    this.contract = await PerformanceCard.new({ from: owner })
-
-    await this.contract.initialize(
+    this.contract = await PerformanceCard.new(
       this.fractionableERC721.address,
       this.reserveToken.address, {
         from: owner
@@ -100,9 +98,8 @@ describe('PerformanceCard', function () {
     );
 
     /// set allowed callers to fractionableERC721
-    await this.fractionableERC721.setTokenManager(this.contract.address, {
-        from: owner
-      }
+    await this.fractionableERC721.setTokenManager(
+      this.contract.address, { from: owner }
     )
 
   });
