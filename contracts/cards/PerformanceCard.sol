@@ -27,12 +27,6 @@ interface EIP712 {
     ) external returns (address);
 }
 
-// Simple ERC721 interface
-
-interface IERC721Simple {
-    function ownerOf(uint256 tokenId) external view returns (address owner);
-}
-
 // Main Contract
 
 contract PerformanceCard is Administrable, ICard, GasPriceLimited {
@@ -45,9 +39,8 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     uint32 public constant MATH_PRECISION = 1e4;
 
     // Constant values for creating bonded ERC20 tokens.
-    uint256 public constant ERC20_INITIAL_SUPPLY = 100000e18; // 100000 units
-    uint256 public constant ERC20_INITIAL_POOL_SHARE = 250; // 2.5%
-    uint256 public constant PLATFORM_CUT = 250; // 2.5%
+    uint256 public constant ERC20_INITIAL_SUPPLY = 10000e18; // 10000 units
+    uint256 public constant PLATFORM_CUT = 50; // .5%
 
     // Reserve Token.
     IERC20 private reserveToken;
@@ -292,45 +285,45 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     )
         public override gasPriceLimited
     {
-        // require(
-        //     nftRegistry.getBondedERC20(_tokenId) != address(0),
-        //     "PerformanceCard: tokenId does not exist"
-        // );
+        require(
+            nftRegistry.getBondedERC20(_tokenId) != address(0),
+            "PerformanceCard: tokenId does not exist"
+        );
 
-        // // Check the sender has the required sTSX balance
-        // _requireBalance(msgSender(), reserveToken, _paymentAmount);
+        // Check the sender has the required sTSX balance
+        _requireBalance(msgSender(), reserveToken, _paymentAmount);
 
-        // // Transfer sTSX amount to this contract using EIP712 signature
-        // EIP712(address(reserveToken)).transferWithSig(
-        //     _orderSignature,
-        //     _paymentAmount,
-        //     keccak256(
-        //         abi.encodePacked(_orderId, address(reserveToken), _paymentAmount)
-        //     ),
-        //     _expiration,
-        //     address(this)
-        // );
+        // Transfer sTSX amount to this contract using EIP712 signature
+        EIP712(address(reserveToken)).transferWithSig(
+            _orderSignature,
+            _paymentAmount,
+            keccak256(
+                abi.encodePacked(_orderId, address(reserveToken), _paymentAmount)
+            ),
+            _expiration,
+            address(this)
+        );
 
-        // // transfer platform cut.
-        // uint256 pFee = _paymentAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
-        // reserveToken.safeTransfer(owner(), pFee);
+        // transfer platform cut.
+        uint256 pFee = _paymentAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
+        reserveToken.safeTransfer(owner(), pFee);
 
-        // // Get effective amount after tx fees
-        // uint256 effectiveReserveAmount = _paymentAmount.sub(pFee);
+        // Get effective amount after tx fees
+        uint256 effectiveReserveAmount = _paymentAmount.sub(pFee);
 
-        // // The estimated amount of bonded tokens for reserve
-        // uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
-        //     _tokenId,
-        //     effectiveReserveAmount
-        // );
+        // The estimated amount of bonded tokens for reserve
+        uint256 estimatedTokens = nftRegistry.estimateBondedERC20Tokens(
+            _tokenId,
+            effectiveReserveAmount
+        );
 
-        // // Issue fractionables to msg sender.
-        // nftRegistry.mintBondedERC20(
-        //     _tokenId,
-        //     msgSender(),
-        //     estimatedTokens,
-        //     effectiveReserveAmount
-        // );
+        // Issue fractionables to msg sender.
+        nftRegistry.mintBondedERC20(
+            _tokenId,
+            msgSender(),
+            estimatedTokens,
+            effectiveReserveAmount
+        );
     }
 
     /**
@@ -400,8 +393,15 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             reserveAmount
         );
 
+        // fees
+        uint256 pFee = reserveAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
+        reserveToken.safeTransfer(owner(), pFee);
+
+        // Get effective amount after tx fees
+        uint256 effectiveReserveAmount = reserveAmount.sub(pFee);
+
         // Trade reserve to sTSX and send to liquidator
-        reserveToken.safeTransfer(msgSender(), reserveAmount);
+        reserveToken.safeTransfer(msgSender(), effectiveReserveAmount);
     }
 
     /**
@@ -426,8 +426,14 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             _liquidationAmount
         );
 
+        // Calc fees
+        uint256 pFees = reserveAmount.mul(PLATFORM_CUT).div(MATH_PRECISION);
+
+        // Get effective amount after tx fees
+        uint256 effectiveReserveAmount = reserveAmount.sub(pFees);
+
         // Return the expected exchange rate and slippage in 1e18 precision
-        expectedRate = _liquidationAmount.mul(1e18).div(reserveAmount);
+        expectedRate = _liquidationAmount.mul(1e18).div(effectiveReserveAmount);
         slippageRate = reserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
         );

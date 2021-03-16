@@ -3,7 +3,7 @@
 
 ## Main Contracts
 
-### PerformanceCard.sol
+### PerformanceCard.sol (NFTRegistry)
 Performance Cards manager contract.
 
 ### BondedERC20.sol
@@ -35,7 +35,7 @@ FractionableERC721: 0x3D4237C443B826fc024aa462513Ac6013058E237
 
 PerformanceCard: 0xBF5B3dF771871E76D040afE03730ea37acFec7d4
 
-ReserveToken (sTSX): 0x457E7C683CCf8e64F1DDA0Ff0ffE6403b002e15d
+Mapped sTSX: 0xdC65b2b74826d92Bf4776c461F8d48bd1f8E5502
 ```
 
 

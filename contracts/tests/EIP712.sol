@@ -4,7 +4,7 @@ pragma solidity ^0.6.8;
 
 contract LibEIP712Domain {
     string constant internal EIP712_DOMAIN_SCHEMA =
-        "EIP712Domain(string name,string version,uint256 chainId,address contract)";
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
 
     bytes32 constant public EIP712_DOMAIN_SCHEMA_HASH = keccak256(
         abi.encodePacked(EIP712_DOMAIN_SCHEMA)
@@ -17,25 +17,19 @@ contract LibEIP712Domain {
     bytes32 public EIP712_DOMAIN_HASH;
 
     constructor () public {
-        EIP712_DOMAIN_HASH = keccak256(abi.encode(
-            EIP712_DOMAIN_SCHEMA_HASH,
-            keccak256(bytes(EIP712_DOMAIN_NAME)),
-            keccak256(bytes(EIP712_DOMAIN_VERSION)),
-            EIP712_DOMAIN_CHAINID,
-            address(this)
-        ));
+        EIP712_DOMAIN_HASH = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_SCHEMA_HASH,
+                keccak256(bytes(EIP712_DOMAIN_NAME)),
+                keccak256(bytes(EIP712_DOMAIN_VERSION)),
+                EIP712_DOMAIN_CHAINID,
+                address(this)
+            )
+        );
     }
 
     function hashEIP712Message(bytes32 hashStruct) internal view returns (bytes32 result) {
         bytes32 domainHash = EIP712_DOMAIN_HASH;
-
-        // Assembly for more efficient computing:
-        // keccak256(abi.encode(
-        //     EIP191_HEADER,
-        //     domainHash,
-        //     hashStruct
-        // ));
-
         assembly {
             // Load free memory pointer
             let memPtr := mload(64)

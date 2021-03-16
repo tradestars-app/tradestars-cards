@@ -222,12 +222,15 @@ describe('PerformanceCard', function () {
         context.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
       );
 
-      // console.log('typedData', typedData);
-
       /// PK for someone => account (2)
       const orderSignature = ethSign.signTypedData(
         toBuffer(privateKeys[2]), { data: typedData } //
       );
+
+      // console.log('cardArgs', cardArgs);
+      // console.log('typedData', typedData);
+      // console.log('createCardHash: ', createCardHash);
+      // console.log('orderSignature: ', orderSignature);
 
       return context.contract.createCard(
         cardArgs['tokenId'],
@@ -254,7 +257,7 @@ describe('PerformanceCard', function () {
       const tokenId = 1000;
       const cardArgs = createCardArgs(tokenId);
 
-      const tx = await createCard(this, cardArgs, admin, someone);
+      await createCard(this, cardArgs, admin, someone);
     });
 
     it(`Should FAIL createCard() :: card exists`, async function() {
@@ -295,8 +298,6 @@ describe('PerformanceCard', function () {
       const addr = await this.fractionableERC721.getBondedERC20(tokenId)
       const bondedToken = await BondedERC20.at(addr);
 
-      const tSupply = await bondedToken.balanceOf(someone)
-
       /// purchase() and check received tokens == estimation
 
       const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
@@ -312,7 +313,7 @@ describe('PerformanceCard', function () {
 
       /// PK for 'someone' -> (account 2)
       const orderSignature = ethSign.signTypedData(
-        toBuffer(privateKeys[2]), { from: someone, data: typedData }
+        toBuffer(privateKeys[2]), { data: typedData }
       );
 
       await this.contract.purchase(
@@ -338,33 +339,32 @@ describe('PerformanceCard', function () {
 
       /// Sell all balance
       const tSupply = await bondedToken.balanceOf(someone)
+      const sellAmount = tSupply.div(new BN(2));
 
       await this.contract.liquidate(
         tokenId,
-        tSupply, {
+        sellAmount, {
           from: someone
         }
       );
 
       const value = await bondedToken.balanceOf(someone)
 
-      expect(value).to.be.eq.BN('0');
+      expect(value).to.be.eq.BN(sellAmount);
     });
 
   });
 
   describe('Test relayedTx / purchase', function() {
+
     const tokenId = 1000;
 
     it(`Should OK purchase() relayed`, async function() {
 
       const paymentAmount = toWei('10');
 
-      const addr = await this.fractionableERC721.getBondedERC20(tokenId)
+      const addr = await this.fractionableERC721.getBondedERC20(tokenId);
       const bondedToken = await BondedERC20.at(addr);
-
-      const tSupply = await this.reserveToken.balanceOf(someone)
-      expect(tSupply).to.be.gte.BN(paymentAmount)
 
       /// purchase() and check received tokens == estimation
 
@@ -381,16 +381,16 @@ describe('PerformanceCard', function () {
 
       /// PK for 'someone' -> (account 2)
       const orderSignature = ethSign.signTypedData(
-        toBuffer(privateKeys[2]), { from: someone, data: typedData }
+        toBuffer(privateKeys[2]), { data: typedData }
       );
 
-      const abiEncoded = this.contract.contract.methods.purchase(
+      const abiEncoded = await this.contract.contract.methods.purchase(
         tokenId,
         paymentAmount,
         expiration,
         orderId,
         orderSignature,
-      ).encodeABI()
+      ).encodeABI();
 
       /// Test relay
 

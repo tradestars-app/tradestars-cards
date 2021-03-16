@@ -14,11 +14,12 @@ function getOrderTypedData(
   tokenIdOrAmount,
   spenderAddress
 ) {
+
   const domain = [
     { name: 'name', type: 'string' },
     { name: 'version', type: 'string' },
     { name: 'chainId', type: 'uint256' },
-    { name: 'contract', type: 'address' },
+    { name: 'verifyingContract', type: 'address' },
   ];
 
   const message = [
@@ -34,6 +35,8 @@ function getOrderTypedData(
     { type: 'uint256', value: tokenIdOrAmount }
   );
 
+  // console.log('orderDataHash:', orderDataHash)
+
   return {
     types: {
       EIP712Domain: domain,
@@ -44,7 +47,7 @@ function getOrderTypedData(
       name: 'Matic Network',
       version: '1',
       chainId: 15001, // should come as paramenter
-      contract: tokenAddress,
+      verifyingContract: tokenAddress,
     },
     message: {
       spender: spenderAddress, // This contract address

@@ -45,7 +45,6 @@ contract BondedERC20 is Ownable, ERC20 {
             _reserveRatio > 1 && _reserveRatio <= 1000000,
             "BondedERC20: invalid _reserveRatio"
         );
-
         reserveRatio = _reserveRatio;
     }
 

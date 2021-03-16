@@ -8,8 +8,9 @@ contract LibTokenTransferOrder is LibEIP712Domain {
     string constant internal EIP712_TOKEN_TRANSFER_ORDER_SCHEMA =
         "TokenTransferOrder(address spender,uint256 tokenIdOrAmount,bytes32 data,uint256 expiration)";
 
-    bytes32 constant public EIP712_TOKEN_TRANSFER_ORDER_SCHEMA_HASH =
-        keccak256(abi.encodePacked(EIP712_TOKEN_TRANSFER_ORDER_SCHEMA));
+    bytes32 constant public EIP712_TOKEN_TRANSFER_ORDER_SCHEMA_HASH = keccak256(
+        abi.encodePacked(EIP712_TOKEN_TRANSFER_ORDER_SCHEMA)
+    );
 
     struct TokenTransferOrder {
         address spender;
@@ -40,15 +41,6 @@ contract LibTokenTransferOrder is LibEIP712Domain {
         internal pure returns (bytes32 result)
     {
         bytes32 schemaHash = EIP712_TOKEN_TRANSFER_ORDER_SCHEMA_HASH;
-
-        // Assembly for more efficiently computing:
-        // return keccak256(abi.encode(
-        //   schemaHash,
-        //   spender,
-        //   tokenIdOrAmount,
-        //   data,
-        //   expiration
-        // ));
 
         assembly {
             // Load free memory pointer

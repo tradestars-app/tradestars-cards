@@ -8,8 +8,8 @@ import "../bondedERC20/BondedERC20.sol";
 library ERC20Manager {
 
     function deploy(
-        string memory _symbol,
         string memory _name,
+        string memory _symbol,
         uint256 _tokenId
     )
         internal returns(address)

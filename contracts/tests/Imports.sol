@@ -82,16 +82,7 @@ contract ERC20Mock is ERC20Burnable, LibTokenTransferOrder {
         disabledHashes[dataHash] = true;
 
         from = ecrecovery(dataHash, sig);
-        _transferFrom(from, address(uint160(to)), amount);
-    }
 
-    /// @param from Address from where tokens are withdrawn.
-    /// @param to Address to where tokens are sent.
-    /// @param value Number of tokens to transfer.
-    /// @return Returns success of function call.
-    function _transferFrom(address from, address to, uint256 value) internal returns (bool) {
-        _transfer(from, to, value);
-
-        return true;
+        _transfer(from, to, amount);
     }
 }
