@@ -1,5 +1,3 @@
-const { web3 } = require('@openzeppelin/test-environment')
-
 /**
  * @param orderId a unique number for the order
  * @param expiration expiration ts of the order
@@ -44,9 +42,9 @@ function getOrderTypedData(
     },
     primaryType: 'TokenTransferOrder',
     domain: {
-      name: 'Matic Network',
+      name: 'TradeStars',
       version: '1',
-      chainId: 15001, // should come as paramenter
+      chainId: 31337, // should come as paramenter
       verifyingContract: tokenAddress,
     },
     message: {

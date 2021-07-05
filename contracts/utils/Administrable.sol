@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract Administrable is Ownable {
     using ECDSA for bytes32;
@@ -14,6 +14,9 @@ contract Administrable is Ownable {
     // Admins map
     mapping(address => bool) private adminsMap;
 
+    /**
+     * @dev check the function is called only by admin of the contract
+     */
     modifier onlyAdmin {
         require(adminsMap[msg.sender], "Administrable: sender is not admin");
         _;
@@ -45,6 +48,9 @@ contract Administrable is Ownable {
         emit AdminRemoved(_wallet);
     }
 
+    /**
+     * @dev renounce to admin of the contract
+     */
     function renounceAdmin() external onlyAdmin {
         adminsMap[msg.sender] = false;
 

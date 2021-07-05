@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 // We import the contract so truffle compiles it, and we have the ABI
 // available when working from truffle console.
-import "@gnosis.pm/mock-contract/contracts/MockContract.sol";
+// import "@gnosis.pm/mock-contract/contracts/MockContract.sol";
 
 /// Create Mock ERC20 for test
-import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "./LibTokenTransferOrder.sol";
 
 contract ERC20Mock is ERC20Burnable, LibTokenTransferOrder {
@@ -18,7 +18,7 @@ contract ERC20Mock is ERC20Burnable, LibTokenTransferOrder {
         string memory _name,
         string memory _symbol
     )
-        ERC20(_name, _symbol) public
+        ERC20(_name, _symbol)
     {
 
     }

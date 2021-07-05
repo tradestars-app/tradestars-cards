@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 // This Contract is not upgradable.
 import "./IBondedERC20Transfer.sol";
+
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -15,7 +17,7 @@ contract BondedERC20 is Ownable, ERC20 {
 
     using SafeMath for uint256;
 
-    uint256 public tokenId;
+    uint256 immutable tokenId;
 
     // Keeps track of the reserve balance.
     uint256 public poolBalance;
@@ -28,7 +30,7 @@ contract BondedERC20 is Ownable, ERC20 {
         string memory _symbol,
         uint256 _tokenId
     )
-        public Ownable() ERC20(_name, _symbol)
+        Ownable() ERC20(_name, _symbol)
     {
         tokenId = _tokenId;
 

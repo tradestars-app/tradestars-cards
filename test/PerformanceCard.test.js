@@ -1,5 +1,3 @@
-const { accounts, contract, web3, privateKeys } = require('@openzeppelin/test-environment')
-
 const {
   BN, // big number
   time, // time helpers
@@ -22,13 +20,13 @@ const expect = require('chai')
   .expect
 
 /// Used artifacts
-const BondedERC20 = contract.fromArtifact('BondedERC20');
-const BondedHelper = contract.fromArtifact('BondedERC20Helper');
-const PerformanceCard = contract.fromArtifact('PerformanceCard');
-const FractionableERC721 = contract.fromArtifact('FractionableERC721');
+const BondedERC20 = artifacts.require('BondedERC20');
+const BondedHelper = artifacts.require('BondedERC20Helper');
+const PerformanceCard = artifacts.require('PerformanceCard');
+const FractionableERC721 = artifacts.require('FractionableERC721');
 
 /// Create a Mock Contract
-const ERC20Mock = contract.fromArtifact('ERC20Mock');
+const ERC20Mock = artifacts.require('ERC20Mock');
 
 const createSignature = async (msgHash, signer) => {
   const signature = await web3.eth.sign(msgHash, signer);
@@ -67,9 +65,11 @@ const createCardArgs = (tokenId) => {
 
 describe('PerformanceCard', function () {
 
-  const [ owner, admin, someone, anotherone ] = accounts;
+  let owner, admin, someone, anotherone;
 
   before(async function() {
+    
+    [ owner, admin, someone, anotherone ] = await web3.eth.getAccounts();
 
     /// Create Mock ERC20 Contracts
     this.reserveToken = await ERC20Mock.new(
@@ -210,38 +210,14 @@ describe('PerformanceCard', function () {
       const createCardHash = createHash(cardArgs);
       const adminSignature = await createSignature(createCardHash, adminSigner);
 
-      // EIP712
-      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
-      const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
-
-      const typedData = getOrderTypedData(
-        orderId,
-        expiration,
-        context.reserveToken.address, /// The token contract address
-        cardArgs['cardValue'],  // tokens amount
-        context.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
-      );
-
-      /// PK for someone => account (2)
-      const orderSignature = ethSign.signTypedData(
-        toBuffer(privateKeys[2]), { data: typedData } //
-      );
-
-      // console.log('cardArgs', cardArgs);
-      // console.log('typedData', typedData);
-      // console.log('createCardHash: ', createCardHash);
-      // console.log('orderSignature: ', orderSignature);
-
       return context.contract.createCard(
         cardArgs['tokenId'],
         cardArgs['symbol'],
         cardArgs['name'],
         cardArgs['cardValue'],
+        cardArgs['cardValue'], // test 
         createCardHash,
-        adminSignature,
-        expiration,
-        orderId,
-        orderSignature, {
+        adminSignature, {
           from: msgSender,
           gasPrice: toWei('10', 'gwei')
         }
@@ -250,7 +226,14 @@ describe('PerformanceCard', function () {
 
     before(async function() {
       // Mint tokens for card creator
-      await this.reserveToken.mint(someone, toWei('1000000'), );
+      await this.reserveToken.mint(someone, toWei('1000000'));
+
+      // approve to someone
+      await this.reserveToken.approve(
+        this.contract.address, toWei('1000000'), {
+          from: someone
+        }
+      );
     });
 
     it(`Should OK createCard()`, async function() {
@@ -266,7 +249,7 @@ describe('PerformanceCard', function () {
 
       await expectRevert(
         createCard(this, cardArgs, admin, someone),
-        'PerformanceCard: card already created.'
+        'PerformanceCard: card already created'
       );
     });
 
@@ -300,28 +283,9 @@ describe('PerformanceCard', function () {
 
       /// purchase() and check received tokens == estimation
 
-      const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
-      const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
-
-      const typedData = getOrderTypedData(
-        orderId,
-        expiration,
-        this.reserveToken.address, /// The token contract address
-        paymentAmount,  // tokens amount
-        this.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
-      );
-
-      /// PK for 'someone' -> (account 2)
-      const orderSignature = ethSign.signTypedData(
-        toBuffer(privateKeys[2]), { data: typedData }
-      );
-
       await this.contract.purchase(
         tokenId,
-        paymentAmount,
-        expiration,
-        orderId,
-        orderSignature, {
+        paymentAmount, {
           from: someone
         }
       );
@@ -368,28 +332,9 @@ describe('PerformanceCard', function () {
 
       /// purchase() and check received tokens == estimation
 
-      const orderId = `0x${randomBytes(16).toString('hex')}`; // create a random orderId
-      const expiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
-
-      const typedData = getOrderTypedData(
-        orderId,
-        expiration,
-        this.reserveToken.address, /// The token contract address
-        paymentAmount,  // tokens amount
-        this.contract.address // Spender address is the calling contract that transfer tokens in behalf of the user
-      );
-
-      /// PK for 'someone' -> (account 2)
-      const orderSignature = ethSign.signTypedData(
-        toBuffer(privateKeys[2]), { data: typedData }
-      );
-
       const abiEncoded = await this.contract.contract.methods.purchase(
         tokenId,
-        paymentAmount,
-        expiration,
-        orderId,
-        orderSignature,
+        paymentAmount
       ).encodeABI();
 
       /// Test relay
@@ -401,6 +346,7 @@ describe('PerformanceCard', function () {
         { t: 'uint256', v: nonce },
         { t: 'address', v: signer },
         { t: 'bytes', v: abiEncoded },
+        { t: 'uint256', v: 31337 } // hardhat chainId
       );
 
       // relay tx
@@ -424,8 +370,9 @@ describe('PerformanceCard', function () {
       }
 
       /// PK for 'signer' -> (account 2)
+      /// 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
       const signedTx = await web3.eth.accounts.signTransaction(
-        txParams, privateKeys[2]
+        txParams, '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'
       );
 
       // Send Tx
@@ -436,6 +383,28 @@ describe('PerformanceCard', function () {
       expect(newSupply).to.be.not.eq.BN('0');
     });
 
+  });
+
+  describe('Test upgrade', function() {
+    it(`Should OK upgrade()`, async function() {
+
+      await this.reserveToken.mint(this.contract.address, '1000');
+
+      const preBalance = await this.reserveToken.balanceOf(this.contract.address);
+
+      const c = await PerformanceCard.new(
+        this.fractionableERC721.address,
+        this.reserveToken.address, {
+          from: owner
+        }
+      );
+
+      await this.contract.upgrade(c.address, { from: owner });
+
+      const postBalance = await this.reserveToken.balanceOf(c.address);
+
+      expect(postBalance).to.be.eq.BN(preBalance);
+    });
   });
 
 });

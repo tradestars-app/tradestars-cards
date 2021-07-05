@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  * Based on https://github.com/bancorprotocol/contracts/blob/master/solidity/contracts/converter/BancorFormula.sol
@@ -29,7 +29,7 @@ contract BondedERC20Helper {
 
     uint256[128] private maxExpArray;
 
-    constructor() public {
+    constructor() {
         maxExpArray[32] = 0x1c35fedd14ffffffffffffffffffffffff;
         maxExpArray[33] = 0x1b0ce43b323fffffffffffffffffffffff;
         maxExpArray[34] = 0x19f0028ec1ffffffffffffffffffffffff;

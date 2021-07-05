@@ -1,16 +1,14 @@
-const { accounts, contract } = require('@openzeppelin/test-environment');
-
 const {
   BN,
   expectEvent, // Assertions for emitted events
-  expectRevert, // Assertions for transactions that should fail
+  expectRevert // Assertions for transactions that should fail
 } = require('@openzeppelin/test-helpers');
 
 const { toWei } = require('web3-utils');
 
-const BondedERC20 = contract.fromArtifact('BondedERC20');
-const BondedHelper = contract.fromArtifact('BondedERC20Helper');
-const FractionableERC721 = contract.fromArtifact('FractionableERC721');
+const BondedERC20 = artifacts.require('BondedERC20');
+const BondedHelper = artifacts.require('BondedERC20Helper');
+const FractionableERC721 = artifacts.require('FractionableERC721');
 
 const expect = require('chai')
   .use(require('bn-chai')(BN))
@@ -18,9 +16,11 @@ const expect = require('chai')
 
 describe('FractionableERC721', function () {
 
-  const [ owner, someone, tokenManager ] = accounts;
+  let owner, someone, tokenManager;
 
   before(async function() {
+
+    [ owner, someone, tokenManager ] = await web3.eth.getAccounts();
 
     /// Create and initialize a fractionableERC721
     const bondedHelper = await BondedHelper.new({ from: owner });
@@ -36,7 +36,7 @@ describe('FractionableERC721', function () {
 
   describe('tokenManager', function() {
 
-    it(`is set OK`, async function() {
+    it(`Is set OK`, async function() {
       await this.contract.setTokenManager(tokenManager, {
         from: owner
       })
@@ -54,12 +54,16 @@ describe('FractionableERC721', function () {
 
   describe('Creating the NFT', function() {
 
-    const newToken = {
-      tokenId: 1000,
-      beneficiary: someone,
-      symbol: "symbol",
-      name: "name"
-    }
+    let newToken;
+
+    before(function () {
+      newToken = {
+        tokenId: 1000,
+        beneficiary: someone,
+        symbol: "symbol",
+        name: "name"
+      }
+    })
 
     it(`Mints OK called from tokenManager`, async function() {
       const tx = await this.contract.mintToken(

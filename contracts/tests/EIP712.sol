@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 contract LibEIP712Domain {
     string constant internal EIP712_DOMAIN_SCHEMA =
@@ -10,19 +10,24 @@ contract LibEIP712Domain {
         abi.encodePacked(EIP712_DOMAIN_SCHEMA)
     );
 
-    string constant internal EIP712_DOMAIN_NAME = "Matic Network";
+    string constant internal EIP712_DOMAIN_NAME = "TradeStars";
     string constant internal EIP712_DOMAIN_VERSION = "1";
-    uint256 constant internal EIP712_DOMAIN_CHAINID = 15001;
 
     bytes32 public EIP712_DOMAIN_HASH;
 
-    constructor () public {
+    constructor () {
+        uint256 chainId;
+        
+        assembly {
+            chainId := chainid()
+        }
+
         EIP712_DOMAIN_HASH = keccak256(
             abi.encode(
                 EIP712_DOMAIN_SCHEMA_HASH,
                 keccak256(bytes(EIP712_DOMAIN_NAME)),
                 keccak256(bytes(EIP712_DOMAIN_VERSION)),
-                EIP712_DOMAIN_CHAINID,
+                chainId,
                 address(this)
             )
         );

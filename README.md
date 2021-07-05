@@ -20,14 +20,6 @@ $ git clone git@github.com:tradestars-app/tradestars-cards.git
 $ cd tradestars-cards
 ```
 
-Install project dependencies:
-
-```bash
-$ npm install
-$ npm run test
-```
-
-
 ## Matic - Mumbai
 ```
 BondedERC20Helper: 0x98193ea10AE8AC2732DA62a04e0C39E009CAFAE3

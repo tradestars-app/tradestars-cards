@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 interface ICard {
+
+    event UnlockDeposit(
+        address indexed from,
+        uint256 indexed tokenId,
+        uint256 amount
+    );
 
     function swap(
         uint256 _tokenId,
@@ -13,10 +19,7 @@ interface ICard {
 
     function purchase(
         uint256 _tokenId,
-        uint256 _paymentAmount,
-        uint256 _expiration,
-        bytes32 _orderId,
-        bytes calldata _orderSignature
+        uint256 _paymentAmount
     )
         external;
 
