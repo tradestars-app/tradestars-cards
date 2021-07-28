@@ -1,5 +1,3 @@
-const { web3 } = require('@openzeppelin/test-environment')
-
 const BN = web3.utils.BN
 const expect = require('chai')
   .use(require('bn-chai')(BN))

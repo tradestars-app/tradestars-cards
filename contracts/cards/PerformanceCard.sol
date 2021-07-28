@@ -1,35 +1,24 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.8;
+pragma solidity ^0.8.0;
 
 import "./ICard.sol";
 
 import "../lib/ERC20Manager.sol";
-
-import "../utils/Administrable.sol";
 import "../utils/GasPriceLimited.sol";
 
 import "../fractionable/IFractionableERC721.sol";
 
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// Simple
-interface EIP712 {
-    function transferWithSig(
-        bytes calldata sig,
-        uint256 tokenIdOrAmount,
-        bytes32 data,
-        uint256 expiration,
-        address to
-    ) external returns (address);
-}
 
 // Main Contract
 
-contract PerformanceCard is Administrable, ICard, GasPriceLimited {
+contract PerformanceCard is ICard, GasPriceLimited {
 
     using ECDSA for bytes32;
     using SafeMath for uint256;
@@ -43,25 +32,30 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     uint256 public constant PLATFORM_CUT = 50; // .5%
 
     // Reserve Token.
-    IERC20 private reserveToken;
+    IERC20 private immutable reserveToken;
 
     // Registry
-    IFractionableERC721 private nftRegistry;
+    IFractionableERC721 private immutable nftRegistry;
 
     // Relayed signatures map
     mapping(bytes => bool) private relayedSignatures;
+
+    // partial unlocks
+    struct TokenInfo {
+        uint256 total;
+        address[] senders;
+        mapping(address => uint256) index;
+        mapping(address => uint256) contributions;
+    }
+
+    mapping(uint256 => TokenInfo) private partialTokensRegistry;
 
     /**
      * @dev Initializer for PerformanceCard contract
      * @param _nftRegistry - NFT Registry address
      * @param _reserveToken - Reserve registry address
      */
-     constructor(
-        address _nftRegistry,
-        address _reserveToken
-    )
-        public
-    {
+     constructor(address _nftRegistry, address _reserveToken) {
         // Set Reseve Token addresses
         reserveToken = IERC20(_reserveToken);
 
@@ -91,7 +85,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         // Check hashed message & signature
         bytes32 _hash = keccak256(
-            abi.encodePacked(_nonce, _signer, _abiEncoded)
+            abi.encodePacked(_nonce, _signer, _abiEncoded, block.chainid)
         );
 
         require(
@@ -125,11 +119,30 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     }
 
     /**
+     * @dev Upgrades Performance Card. Can only be called by owner. 
+     * @param _newCardContract new PerformanceCard
+     */ 
+    function upgrade(address _newCardContract) external onlyOwner {    
+
+        // transfer to new reserve contract
+        uint256 reserveAmount = reserveToken.balanceOf(address(this));
+        
+        reserveToken.transfer(
+            _newCardContract, 
+            reserveAmount
+        );
+
+        // send possible remaining funds
+        selfdestruct(payable(owner()));
+    }
+
+    /**
      * @dev Create Performance Card
      * @param _tokenId card id
      * @param _symbol card symbol
      * @param _name card name
-     * @param _reserveAmount creation value for the card
+     * @param _cardUnlockReserveAmount creation value for the card
+     * @param _unlockContributionAmount creation value for the card
      * @param _msgHash hash of card parameters
      * @param _signature admin signature
      */
@@ -137,13 +150,10 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
         uint256 _tokenId,
         string memory _symbol,
         string memory _name,
-        uint256 _reserveAmount,
+        uint256 _cardUnlockReserveAmount,
+        uint256 _unlockContributionAmount,
         bytes32 _msgHash,
-        bytes memory _signature,
-        // These are required for EIP712
-        uint256 _expiration,
-        bytes32 _orderId,
-        bytes memory _orderSignature
+        bytes memory _signature
     )
         public gasPriceLimited
     {
@@ -154,7 +164,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
 
         // Check hashed message & admin signature
         bytes32 checkHash = keccak256(
-            abi.encodePacked(_tokenId, _symbol, _name, _reserveAmount)
+            abi.encodePacked(_tokenId, _symbol, _name, _cardUnlockReserveAmount)
         );
 
         require(
@@ -167,33 +177,75 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: invalid admin signature"
         );
 
-        // Check the sender has the required sTSX balance
-        _requireBalance(msgSender(), reserveToken, _reserveAmount);
-
-        // Transfer sTSX _reserveAmount from caller account to this contract using EIP712 signature
-        EIP712(address(reserveToken)).transferWithSig(
-            _orderSignature,
-            _reserveAmount,
-            keccak256(
-                abi.encodePacked(_orderId, address(reserveToken), _reserveAmount)
-            ),
-            _expiration,
-            address(this)
+        // operator is approved already
+        reserveToken.safeTransferFrom(
+            msgSender(), 
+            address(this), 
+            _unlockContributionAmount
         );
 
-        // Create NFT
-        // - The NFT owner is platform owner
-        // - The ERC20_INITIAL_SUPPLY is for msgSender()
-        //
-        nftRegistry.mintToken(_tokenId, owner(), _symbol, _name);
-        nftRegistry.mintBondedERC20(_tokenId, msgSender(), ERC20_INITIAL_SUPPLY, _reserveAmount);
+        // check unlocker
+        TokenInfo storage t = partialTokensRegistry[_tokenId];
+
+        uint256 contribution = t.contributions[msgSender()];
+
+        // if already contributed, refund previous
+        if (contribution > 0) {
+            t.total = t.total - contribution;
+
+            // remove from array 
+            uint256 index = t.index[msgSender()];
+            
+            // remove last and place it in current deleted item
+            address lastItem = t.senders[t.senders.length - 1];
+
+            // set last item in place of deleted
+            t.senders[index] = lastItem;
+            t.senders.pop();
+
+            // update index map
+            t.index[lastItem] = index; 
+            
+            // delete removed address from index map
+            delete t.index[msgSender()];
+
+            // refund last contribution
+            reserveToken.transfer(msgSender(), contribution);
+        }
+
+        // save partial contribution
+        t.total = t.total.add(_unlockContributionAmount);
+
+        // Refund extra contribution
+        if (t.total > _cardUnlockReserveAmount) {
+            uint256 refund = t.total - _cardUnlockReserveAmount;
+
+            t.total -= refund;
+            _unlockContributionAmount -= refund;
+
+            reserveToken.transfer(msgSender(), refund);
+        }
+
+        // save contributor
+        t.contributions[msgSender()] = _unlockContributionAmount;
+        t.index[msgSender()] = t.senders.length;
+        
+        // add contributor to senders list
+        t.senders.push(msgSender());
+
+        emit UnlockDeposit(msgSender(), _tokenId, _unlockContributionAmount);
+
+        // if filled
+        if (t.total == _cardUnlockReserveAmount) {
+            _createCard(_tokenId, _symbol, _name, _cardUnlockReserveAmount);
+        }
     }
 
     /**
      * Swap two fractionable ERC721 tokens.
      * @param _tokenId tokenId to liquidate
      * @param _amount wei amount of liquidation in source token.
-     * @param _destTokenId tokenId to puurchase.
+     * @param _destTokenId tokenId to purchase.
      */
     function swap(
         uint256 _tokenId,
@@ -262,7 +314,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             reserveAmount
         );
 
-        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
+        address bondedToken = nftRegistry.getBondedERC20(_destTokenId);
 
         // Return the expected exchange rate and slippage in 1e18 precision
         expectedRate = estimatedTokens.mul(1e18).div(_amount);
@@ -278,10 +330,7 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
      */
     function purchase(
         uint256 _tokenId,
-        uint256 _paymentAmount,
-        uint256 _expiration,
-        bytes32 _orderId,
-        bytes memory _orderSignature
+        uint256 _paymentAmount
     )
         public override gasPriceLimited
     {
@@ -290,18 +339,11 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             "PerformanceCard: tokenId does not exist"
         );
 
-        // Check the sender has the required sTSX balance
-        _requireBalance(msgSender(), reserveToken, _paymentAmount);
-
-        // Transfer sTSX amount to this contract using EIP712 signature
-        EIP712(address(reserveToken)).transferWithSig(
-            _orderSignature,
-            _paymentAmount,
-            keccak256(
-                abi.encodePacked(_orderId, address(reserveToken), _paymentAmount)
-            ),
-            _expiration,
-            address(this)
+        // operator is approved already
+        reserveToken.safeTransferFrom(
+            msgSender(), 
+            address(this), 
+            _paymentAmount
         );
 
         // transfer platform cut.
@@ -440,17 +482,49 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
     }
 
     /**
-     * @dev Check if the sender has balance and
-     *  to use sender ERC20 on his belhalf
-     * @param _sender - address of sender
-     * @param _token - ERC20 token registry
-     * @param _amount - uint256 of amount of tokens
+     * Internal create ERC721 and issues first bonded tokens
+     * @param _tokenId tokenId to create
+     * @param _symbol token symbol
+     * @param _name token name
+     * @param _cardUnlockReserveAmount total reserve for the supply
      */
-    function _requireBalance(address _sender, IERC20 _token, uint256 _amount) private view {
-        require(
-            _token.balanceOf(_sender) >= _amount,
-            "PerformanceCard: insufficient balance"
+    function _createCard(
+        uint256 _tokenId,
+        string memory _symbol,
+        string memory _name,
+        uint256 _cardUnlockReserveAmount 
+    )
+        private
+    {
+        TokenInfo storage t = partialTokensRegistry[_tokenId];
+            
+        // Create NFT
+        // - The NFT owner is platform owner
+        // - The ERC20_INITIAL_SUPPLY is for msgSender()
+        //
+        nftRegistry.mintToken(_tokenId, owner(), _symbol, _name);
+        nftRegistry.mintBondedERC20(
+            _tokenId, address(this), ERC20_INITIAL_SUPPLY, _cardUnlockReserveAmount
         );
+        
+        address bondedToken = nftRegistry.getBondedERC20(_tokenId);
+
+        // send initial shares to unlockers
+        for (uint256 i = 0; i < t.senders.length; i++) {
+            
+            // calculate 
+            address sender = partialTokensRegistry[_tokenId].senders[i];
+            uint256 contribuition = partialTokensRegistry[_tokenId].contributions[sender];
+            
+            uint256 tokens = ERC20_INITIAL_SUPPLY
+                .mul(contribuition)
+                .div(_cardUnlockReserveAmount); // amount
+            
+            ERC20Manager.transfer(bondedToken, sender, tokens);
+        }
+
+        // remove 
+        delete partialTokensRegistry[_tokenId];
     }
 
     /**
@@ -469,6 +543,6 @@ contract PerformanceCard is Administrable, ICard, GasPriceLimited {
             }
             return result;
         }
-        return msg.sender;
+        return payable(msg.sender);
     }
 }
