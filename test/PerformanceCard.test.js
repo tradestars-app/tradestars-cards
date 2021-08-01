@@ -5,7 +5,7 @@ const {
   expectRevert, // Assertions for transactions that should fail
 } = require('@openzeppelin/test-helpers')
 
-const { toWei, soliditySha3 } = require('web3-utils');
+const { toBN, toWei, fromWei, soliditySha3 } = require('web3-utils');
 
 /// Used in EIP712
 const ethSign = require('eth-sig-util');
@@ -59,7 +59,7 @@ const createCardArgs = (tokenId) => {
     'tokenId': tokenId,
     'symbol': `T${tokenId}`,
     'name': `Test Card ${tokenId}`,
-    'cardValue': toWei('10') // 10 ether
+    'cardValue': toWei('2000', "Mwei") 
   };
 }
 
@@ -274,8 +274,45 @@ describe('PerformanceCard', function () {
       );
     })
 
-    it(`Should OK purchase()`, async function() {
+    it(`Should OK estimatePurchase()`, async function() {
+      const paymentAmount = toWei('1', 'Mwei');
 
+      const { expectedRate, slippageRate } = await this.contract.estimatePurchase(
+        tokenId,
+        paymentAmount, {
+          from: someone
+        }
+      );
+
+      console.log(fromWei(expectedRate).toString());
+      console.log(fromWei(slippageRate).toString());
+
+      console.log(
+        fromWei(
+          toBN(paymentAmount).mul(1e12).div(expectedRate)
+        ).toString()
+      )
+      
+      // expect(newSupply).to.be.not.eq.BN('0');
+    });
+
+    it(`Should OK estimateLiquidate()`, async function() {
+      const sellingAmount = toWei('1');
+
+      const { expectedRate, slippageRate } = await this.contract.estimateLiquidate(
+        tokenId,
+        sellingAmount, {
+          from: someone
+        }
+      );
+
+      console.log(fromWei(expectedRate).toString());
+      console.log(fromWei(slippageRate).toString());
+
+      // expect(newSupply).to.be.not.eq.BN('0');
+    });
+
+    it(`Should OK purchase()`, async function() {
       const paymentAmount = toWei('10');
 
       const addr = await this.fractionableERC721.getBondedERC20(tokenId)

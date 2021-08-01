@@ -398,8 +398,8 @@ contract PerformanceCard is ICard, GasPriceLimited {
 
         address bondedToken = nftRegistry.getBondedERC20(_tokenId);
 
-        // Return the expected exchange rate and slippage in 1e18 precision
-        expectedRate = estimatedTokens.mul(1e18).div(_paymentAmount);
+        // Return the expected exchange rate and slippage in 1e6 precision
+        expectedRate = estimatedTokens.mul(1e6).div(_paymentAmount);
         slippageRate = effectiveReserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
         );
@@ -475,7 +475,7 @@ contract PerformanceCard is ICard, GasPriceLimited {
         uint256 effectiveReserveAmount = reserveAmount.sub(pFees);
 
         // Return the expected exchange rate and slippage in 1e18 precision
-        expectedRate = _liquidationAmount.mul(1e18).div(effectiveReserveAmount);
+        expectedRate = _liquidationAmount.mul(1e6).div(effectiveReserveAmount);
         slippageRate = reserveAmount.mul(1e18).div(
             ERC20Manager.poolBalance(bondedToken)
         );
