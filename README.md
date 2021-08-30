@@ -3,7 +3,7 @@
 
 ## Main Contracts
 
-### PerformanceCard.sol (NFTRegistry)
+### TokenManager.sol (NFTRegistry)
 Performance Cards manager contract.
 
 ### BondedERC20.sol

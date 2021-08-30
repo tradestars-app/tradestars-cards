@@ -8,47 +8,35 @@ import "../bondedERC20/IBondedERC20Helper.sol";
 import "../bondedERC20/IBondedERC20Transfer.sol";
 
 import "../lib/ERC20Manager.sol";
+import "../commons/OperationManaged.sol";
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 
-contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC20Transfer {
-
+contract FractionableERC721 is 
+    OperationManaged, 
+    ERC721, 
+    IFractionableERC721, 
+    IBondedERC20Transfer 
+{
     // Helper contract for ERC20 transactions.
     IBondedERC20Helper private bondedHelper;
 
     // Fungible tokens map
     mapping(uint256 => address) private fungiblesMap;
 
-    // Token Manager allowed address
-    address private tokenManager;
-
-    /**
-     * @dev Throws if called by any account other than the manger.
-     */
-    modifier onlyTokenManager() {
-        require(msg.sender == tokenManager, "msg.sender is not tokenManager");
-        _;
-    }
+    // Default reserve ratio for bonded contracts
+    uint32 private bondedTokensDefaultRR = 333333;
 
     constructor(
         address _bondedHelper,
         string memory _name,
         string memory _symbol
     )
-        Ownable() ERC721(_name, _symbol)
+        ERC721(_name, _symbol)
     {
         // Sets address for helper functions
         bondedHelper = IBondedERC20Helper(_bondedHelper);
-    }
-
-    /**
-     * @dev Sets the token manager of the contract.
-     * @param _manager address
-     */
-    function setTokenManager(address _manager) external onlyOwner {
-        tokenManager = _manager;
     }
 
     /**
@@ -60,11 +48,23 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
     }
 
     /**
+     * @dev Sets the bonded tokens default ratio for new contracts
+     * @param _ratio default new ratio
+     */
+    function setBondedTokensDefaultRR(uint32 _ratio) external onlyOwner {
+        require(
+            _ratio > 1 && _ratio <= 1000000,
+            "FractionableERC721: invalid _ratio"
+        );
+        bondedTokensDefaultRR = _ratio;
+    }
+
+    /**
      * @dev Sets bondedToken reserveRatio
      * @param _tokenId address
      * @param _reserveRatio value
      */
-    function setBondedTokenReserveRatio(
+    function setBondedTokenRR(
         uint256 _tokenId,
         uint32 _reserveRatio
     )
@@ -109,7 +109,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         string memory _symbol,
         string memory _name
     )
-        external override onlyTokenManager
+        external override onlyOperationManager
     {
         _mint(_beneficiary, _tokenId);
 
@@ -117,7 +117,8 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         fungiblesMap[_tokenId] = ERC20Manager.deploy(
             _name,
             _symbol,
-            _tokenId
+            _tokenId, 
+            bondedTokensDefaultRR
         );
     }
 
@@ -134,7 +135,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _amount,
         uint256 _value
     )
-        external override onlyTokenManager
+        external override onlyOperationManager
     {
         ERC20Manager.mint(
             fungiblesMap[_tokenId],
@@ -159,7 +160,7 @@ contract FractionableERC721 is Ownable, ERC721, IFractionableERC721, IBondedERC2
         uint256 _amount,
         uint256 _value
     )
-        external override onlyTokenManager
+        external override onlyOperationManager
     {
         ERC20Manager.burn(
             fungiblesMap[_tokenId],

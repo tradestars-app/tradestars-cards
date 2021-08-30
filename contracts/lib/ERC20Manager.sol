@@ -11,12 +11,14 @@ library ERC20Manager {
      * @dev creates a new BondedERC20
      * @param _name of the contract
      * @param _symbol of the contract
-     * @param _tokenId of the contract
+     * @param _tokenId for the created token
+     * @param _reserveRatio for the created token 
      */
     function deploy(
         string memory _name,
         string memory _symbol,
-        uint256 _tokenId
+        uint256 _tokenId, 
+        uint32 _reserveRatio
     )
         internal returns(address)
     {
@@ -24,7 +26,8 @@ library ERC20Manager {
             new BondedERC20(
                 _name,
                 _symbol,
-                _tokenId
+                _tokenId,
+                _reserveRatio
             )
         );
     }

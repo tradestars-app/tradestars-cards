@@ -5,8 +5,6 @@ pragma solidity ^0.8.0;
 // This Contract is not upgradable.
 import "./IBondedERC20Transfer.sol";
 
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -14,8 +12,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @title BondedERC20
  */
 contract BondedERC20 is Ownable, ERC20 {
-
-    using SafeMath for uint256;
 
     uint256 immutable tokenId;
 
@@ -28,14 +24,15 @@ contract BondedERC20 is Ownable, ERC20 {
     constructor(
         string memory _name,
         string memory _symbol,
-        uint256 _tokenId
+        uint256 _tokenId,
+        uint32 _reserveRatio
     )
         Ownable() ERC20(_name, _symbol)
     {
         tokenId = _tokenId;
 
         // sets the reserve ratio for the token
-        reserveRatio = 333333;
+        reserveRatio = _reserveRatio;
     }
 
     /**
@@ -61,7 +58,7 @@ contract BondedERC20 is Ownable, ERC20 {
         _mint(_to, _amount);
 
         // update reserve balance
-        poolBalance = poolBalance.add(_value);
+        poolBalance += _value;
     }
 
     /**
@@ -75,7 +72,7 @@ contract BondedERC20 is Ownable, ERC20 {
         _burn(_burner, _amount);
 
         // update reserve balance
-        poolBalance = poolBalance.sub(_value);
+        poolBalance -= _value;
     }
 
     /**

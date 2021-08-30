@@ -34,17 +34,17 @@ describe('FractionableERC721', function () {
     );
   });
 
-  describe('tokenManager', function() {
+  describe('Setting TokenManager', function() {
 
     it(`Is set OK`, async function() {
-      await this.contract.setTokenManager(tokenManager, {
+      await this.contract.setOperationManager(tokenManager, {
         from: owner
       })
     });
 
     it(`Fail to set :: not owner`, async function() {
       await expectRevert(
-        this.contract.setTokenManager(tokenManager, {
+        this.contract.setOperationManager(tokenManager, {
           from: someone
         }),
         'Ownable: caller is not the owner'
@@ -89,18 +89,28 @@ describe('FractionableERC721', function () {
             from: owner
           }
         ),
-        'msg.sender is not tokenManager'
+        'caller is not allowed'
       );
     });
   });
 
   describe('Changing token reserve ratio', function() {
 
+    it(`Changes OK default bonded tokens ratio`, async function() {
+      const reserveRatio = '55555';
+
+      await this.contract.setBondedTokensDefaultRR(reserveRatio,
+        {
+          from: owner
+        }
+      )
+    });
+
     it(`Changes OK called from owner`, async function() {
       const tokenId = 1000;
       const reserveRatio = '222222';
 
-      await this.contract.setBondedTokenReserveRatio(
+      await this.contract.setBondedTokenRR(
         tokenId,
         reserveRatio,
         {
@@ -114,7 +124,7 @@ describe('FractionableERC721', function () {
       const reserveRatio = '222222';
 
       await expectRevert(
-        this.contract.setBondedTokenReserveRatio(
+        this.contract.setBondedTokenRR(
           tokenId,
           reserveRatio,
           {
@@ -221,7 +231,7 @@ describe('FractionableERC721', function () {
 
       const reserveRatio = '1000000';
 
-      await this.contract.setBondedTokenReserveRatio(
+      await this.contract.setBondedTokenRR(
         tokenId,
         reserveRatio,
         {
