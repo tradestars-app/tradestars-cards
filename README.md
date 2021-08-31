@@ -3,8 +3,8 @@
 
 ## Main Contracts
 
-### TokenManager.sol (NFTRegistry)
-Performance Cards manager contract.
+### TokenManager.sol ()
+Logic contract.
 
 ### BondedERC20.sol
 Transferable ERC20 registry. Tokens are minted() and burned() by the owner NFT.
