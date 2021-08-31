@@ -3,7 +3,7 @@
 
 ## Main Contracts
 
-### PerformanceCard.sol (NFTRegistry)
+### TokenManager.sol (NFTRegistry)
 Performance Cards manager contract.
 
 ### BondedERC20.sol
@@ -16,10 +16,13 @@ Fractionable ERC721 registry.
 Clone the project repository and enter the root directory:
 
 ```
+$ npm i --global hardhat
+
 $ git clone git@github.com:tradestars-app/tradestars-cards.git
 $ cd tradestars-cards
 
-$ npm i
+$ npm install 
+$ npx hardhat test --network hardhat
 ```
 
 
