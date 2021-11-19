@@ -201,6 +201,9 @@ describe('TokenManager', function () {
     }
 
     before(async function() {
+
+      console.log('deposit() ->>>', web3.eth.abi.encodeParameter('uint256', toWei('1000000')))
+
       // Mint tokens for card creator
       await this.reserveToken.deposit(
         someone, web3.eth.abi.encodeParameter('uint256', toWei('10000')), { 
@@ -361,6 +364,32 @@ describe('TokenManager', function () {
       expect(anotheroneShares).to.be.eq.BN(
         toWei('7000') // NFT unlock shares
       ); 
+    });
+  });
+
+  describe('Test swap', function() {
+    const tokenId = 1000;
+    const dstTokenId = 1002;
+
+    it(`Should OK estimateSwap()`, async function() {
+      const paymentAmount = toWei('1');
+
+      const { expectedRate, reserveImpact } = await this.contract.estimateSwap(
+        tokenId,
+        paymentAmount, 
+        dstTokenId, {
+          from: someone
+        }
+      );
+
+      console.log('rate:', fromWei(expectedRate).toString());
+      console.log('impact (%):', fromWei(reserveImpact).toString());
+
+      console.log('Amount => ',
+        fromWei(
+          toBN(paymentAmount).mul(expectedRate).div(toBN(1e18))
+        ).toString()
+      )
     });
   });
 

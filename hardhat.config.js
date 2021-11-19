@@ -1,4 +1,5 @@
 require("@nomiclabs/hardhat-truffle5");
+require("solidity-coverage");
 
 module.exports = {
   defaultNetwork: "hardhat",
