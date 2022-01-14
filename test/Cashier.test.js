@@ -41,7 +41,7 @@ describe('Cashier', function () {
   describe('Tests Transfer', function() {
 
     before(async function() {
-      console.log('deposit() ->>>', web3.eth.abi.encodeParameter('uint256', toWei('1000000')))
+      console.log('deposit(2000000) ->>>', web3.eth.abi.encodeParameter('uint256', toWei('2000000')))
 
       // Mint tokens for card creator
       await this.reserveToken.deposit(
