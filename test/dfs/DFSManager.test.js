@@ -10,17 +10,19 @@ const {toBN, soliditySha3 } = require('web3-utils');
 const { expect } = require('chai');
 
 const ethSign = require('eth-sig-util');
-const { getOrderTypedData } = require('./helpers/eip712utils');
+const { getOrderTypedData } = require('../helpers/eip712utils');
 
 const { toBuffer } = require('ethereumjs-util');
 const { randomBytes } = require('crypto');
 
 const ERC20 = artifacts.require('MockERC20');
-const ContestManager = artifacts.require('ContestManager');
+const DFSManager = artifacts.require('DFSManager');
+const contestStorage = artifacts.require('ContestStorage')
+const entryStorage = artifacts.require('EntryStorage')
 
-contract('ContestManager', function (accounts) {
+contract('DFSManager', function (accounts) {
 
-  const [ owner, admin, someone, anotherone ] = accounts;
+  const [ owner, admin, feeCollector, someone, anotherone ] = accounts;
   let pks = {};
   pks[someone] = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';  
 
@@ -62,27 +64,86 @@ contract('ContestManager', function (accounts) {
 
       this.token = await ERC20.new();
 
-      // create ContestManager
-      this.contestManager = await ContestManager.new(
-        this.token.address,
-        this.token.address //fee collector address, WIP
-      );
+      // create ContestStorage
+      this.contestStorage = await contestStorage.new()
 
-      // send Tokens to ContestManager
-      //this.token.approve(this.contestManager.address, 1000)
+      // create EntryStorage
+      this.entryStorage = await entryStorage.new()
+
+      // create DFSManager
+      this.DFSManager = await DFSManager.new(
+        this.token.address,
+        this.entryStorage.address,
+        this.contestStorage.address
+      );
 
       // mint tokens to contract address
       const initialSupply = toBN(10000)
-      await this.token.mint(this.contestManager.address, initialSupply);
+      await this.token.mint(this.DFSManager.address, initialSupply);
 
-      // set admin address
-      await this.contestManager.setAdminAddress(
-        admin
+      // set fee collector address
+      await this.DFSManager.setFeeCollector(
+        feeCollector
       );
 
   })
 
-  describe("createEntry", function () {
+  describe("createContest", function () {
+    it("createContest should create contest, and transfer creation fee", async function () {
+
+      const creationFee=20
+      const entryFee=10
+      const selectedGames=[50, 70, 87, 45, 32, 34, 65, 63, 67, 98, 76]
+  
+      const createContestArgs = {
+        'contestId': contestId,
+        'entryFee': entryFee,
+        //'draftedPlayersArr': draftedPlayersArr,
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.DFSManager.address
+      };
+  
+      const entryHash = createEntryHash(createEntryArgs);
+      const orderSomeoneSignature = await createSignature(entryHash, someone);  
+
+      // EIP712
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
+      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        orderExpiration,
+        this.token.address, /// The token contract address
+        entryFee,  // tokens amount
+        this.DFSManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        someone // from address included in the EIP712signature
+      );
+
+      // PK for msgSender
+       const eip712TransferSignature = ethSign.signTypedData(
+          toBuffer(pks[someone]), { data: typedData }
+          );
+  
+      await expectRevert(
+        this.DFSManager.createEntry(
+          contestId, 
+          entryFee, 
+          draftedPlayersArr, 
+          orderSomeoneSignature, 
+          // EIP712.
+          orderExpiration,
+          orderId,
+          eip712TransferSignature,
+          { 
+            from: someone 
+          }
+        ), "_checkOrderSignature() - invalid admin signature");    
+
+
+    })
+  })
+
+  describe("createContestEntry", function () {
     it("createEntry should transfer fee and emit event", async function () {
 
       const contestId=1
@@ -94,7 +155,7 @@ contract('ContestManager', function (accounts) {
           'entryFee': entryFee,
           //'draftedPlayersArr': draftedPlayersArr,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.contestManager.address
+          'verifyingContract' : this.DFSManager.address
       };
   
       const entryHash = createEntryHash(createEntryArgs);
@@ -109,7 +170,7 @@ contract('ContestManager', function (accounts) {
         orderExpiration,
         this.token.address, /// The token contract address
         entryFee,  // tokens amount
-        this.contestManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.DFSManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -118,7 +179,7 @@ contract('ContestManager', function (accounts) {
           toBuffer(pks[someone]), { data: typedData }
           );
   
-      const tx = await this.contestManager.createEntry(
+      const tx = await this.DFSManager.createEntry(
         contestId, 
         entryFee, 
         draftedPlayersArr, 
@@ -141,12 +202,11 @@ contract('ContestManager', function (accounts) {
 
       // Check contest balance after sending fees
 
-      // await this.token.balanceOf(this.contestManager.address).then(v => {
+      // await this.token.balanceOf(this.DFSManager.address).then(v => {
       //   console.log(v.toString());
       // })
     })
-
-    it("createEntry should revert if check signature fails", async function () {
+    it("createContestEntry should revert if check signature fails", async function () {
       const contestId=1
       const entryFee=10
       const draftedPlayersArr=[50, 70, 87, 45, 32, 34, 65, 63, 67, 98, 76]
@@ -156,7 +216,7 @@ contract('ContestManager', function (accounts) {
         'entryFee': entryFee,
         //'draftedPlayersArr': draftedPlayersArr,
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.contestManager.address
+        'verifyingContract' : this.DFSManager.address
       };
   
       const entryHash = createEntryHash(createEntryArgs);
@@ -171,7 +231,7 @@ contract('ContestManager', function (accounts) {
         orderExpiration,
         this.token.address, /// The token contract address
         entryFee,  // tokens amount
-        this.contestManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.DFSManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -181,7 +241,7 @@ contract('ContestManager', function (accounts) {
           );
   
       await expectRevert(
-        this.contestManager.createEntry(
+        this.DFSManager.createEntry(
           contestId, 
           entryFee, 
           draftedPlayersArr, 
@@ -207,13 +267,13 @@ contract('ContestManager', function (accounts) {
           'contestId': contestId,
           'rewardAmount': rewardAmount,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.contestManager.address
+          'verifyingContract' : this.DFSManager.address
       };
   
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderAdminSignature = await createSignature(rewardHash, admin);   
       
-      const tx = await this.contestManager.claimReward(
+      const tx = await this.DFSManager.claimReward(
         contestId, 
         rewardAmount, 
         orderAdminSignature, 
@@ -239,14 +299,14 @@ contract('ContestManager', function (accounts) {
           'contestId': contestId,
           'rewardAmount': rewardAmount,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.contestManager.address
+          'verifyingContract' : this.DFSManager.address
       };
   
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderSomeoneSignature = await createSignature(rewardHash, someone);   
       
       await expectRevert(
-        this.contestManager.claimReward(
+        this.DFSManager.claimReward(
           contestId, 
           rewardAmount, 
           orderSomeoneSignature, 
