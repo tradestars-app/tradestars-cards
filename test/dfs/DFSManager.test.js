@@ -1,5 +1,3 @@
-import { FakeContract, smock } from '@defi-wonderland/smock';
-
 const { 
   BN, // big number
   time, // time helpers
@@ -21,8 +19,8 @@ const { randomBytes } = require('crypto');
 
 const ERC20 = artifacts.require('MockERC20');
 const DFSManager = artifacts.require('DFSManager');
-const contestStorage = artifacts.require('ContestStorage')
-const entryStorage = artifacts.require('EntryStorage')
+const contestStorage = artifacts.require('MockContestStorage')
+const entryStorage = artifacts.require('MockEntryStorage')
 
 contract('DFSManager', function (accounts) {
 
@@ -84,31 +82,19 @@ contract('DFSManager', function (accounts) {
 
   beforeEach(async function () {
 
-      const [sender, receiver] = new MockProvider().getWallets();
-
       this.token = await ERC20.new();
 
       // create ContestStorage & set operation manager
-      this.contestStorage = await contestStorage.new({
-        from: owner
-      })
-
-      // await this.contestStorage.setOperationManager(
-        operationManager, {
-          from: owner
-        }
-      )      
+      this.contestStorage = await contestStorage.new()
 
       // create EntryStorage
       this.entryStorage = await entryStorage.new()
-
-      this.contestStorageMock = await deployMockContract(sender, contestStorage.abi);      
 
       // create DFSManager
       this.DFSManager = await DFSManager.new(
         this.token.address,
         this.entryStorage.address,
-        this.contestStorageMock.address
+        this.contestStorage.address
       );
 
       // mint tokens to contract address
@@ -275,10 +261,7 @@ contract('DFSManager', function (accounts) {
     it("createEntry should transfer fee and emit event", async function () {
 
       const contestHash="0x741238C01D9DB821CF171BF61D72260B998F7C7881D90091099945E0B9E0C2E3"
-
-      await contestStorageMock.mock.getContestByHash.returns(contestHash);
-
-      const entryFee=100
+      const entryFee=0
       const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
   
       const createEntryArgs = {
