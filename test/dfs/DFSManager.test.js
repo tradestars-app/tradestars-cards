@@ -5,7 +5,7 @@ const {
   expectRevert, // Assertions for transactions that should fail
 } = require('@openzeppelin/test-helpers');
 
-const {toBN, soliditySha3 } = require('web3-utils');
+const {toWei, toBN, soliditySha3 } = require('web3-utils');
 
 const expect = require('chai')
   .use(require('bn-chai')(BN))
@@ -72,8 +72,9 @@ contract('DFSManager', function (accounts) {
 
   const claimRewardHash = (args) => {
     return soliditySha3(
-      { t: 'uint256', v: args['contestId'] },
-      { t: 'uint256', v: args['rewardAmount'] },
+      { t: 'bytes', v: args['sender'] },
+      { t: 'uint256', v: args['claimedAmount'] },
+      { t: 'bytes', v: args['entryHashArr'] },
       // add chainID and Contract to order hash
       { t: 'uint256', v: args['chainId'] },
       { t: 'address', v: args['verifyingContract'] },
@@ -87,8 +88,34 @@ contract('DFSManager', function (accounts) {
       // create ContestStorage & set operation manager
       this.contestStorage = await contestStorage.new()
 
+      // set operation manager
+      await this.contestStorage.setOperationManager(
+        operationManager,
+        {
+          from:owner
+        }
+      )
+
+      // create Contest
+      tx = await this.contestStorage.createContest(
+        operationManager, "0x2233373635342c203132333231332c2031323331323322", toBN(10000), 50, 2, 10, 10,
+        {
+          from: operationManager
+        }
+      )
+      this.createdContestHash = tx.logs[0].args.contestHash
+
       // create EntryStorage
       this.entryStorage = await entryStorage.new()
+
+      // create Entry for contest
+      tx = await this.entryStorage.createEntry(
+        someone, this.createdContestHash, "0x2233373635342c203132333231332c2031323331323322",
+        {
+          from: someone
+        }
+      )
+      this.createdEntryHash = tx.logs[0].args.entryHash   
 
       // create DFSManager
       this.DFSManager = await DFSManager.new(
@@ -158,6 +185,14 @@ contract('DFSManager', function (accounts) {
           toBuffer(pks[operationManager]), { data: typedData }
           );
   
+      // set operation manager
+      await this.contestStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )
+
       await this.DFSManager.createContest(
           creationFee, 
           entryFee, 
@@ -260,13 +295,12 @@ contract('DFSManager', function (accounts) {
   describe("createContestEntry", function () {
     it("createEntry should transfer fee and emit event", async function () {
 
-      const contestHash="0x741238C01D9DB821CF171BF61D72260B998F7C7881D90091099945E0B9E0C2E3"
-      const entryFee=0
+      const entryFee=toBN(10000)
       const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
   
       const createEntryArgs = {
           'sender': someone,
-          'contestHash': contestHash,
+          'contestHash': this.createdContestHash,
           'entryFee': entryFee,
           'draftedPlayers': draftedPlayers,
           'chainId' : await web3.eth.net.getId(),
@@ -292,10 +326,10 @@ contract('DFSManager', function (accounts) {
       // PK for msgSender
        const eip712TransferSignature = ethSign.signTypedData(
           toBuffer(pks[someone]), { data: typedData }
-          );
+          );  
   
       const tx = await this.DFSManager.createContestEntry(
-        contestHash, 
+        this.createdContestHash, 
         entryFee, 
         draftedPlayers, 
         orderAdminSignature, 
@@ -308,32 +342,30 @@ contract('DFSManager', function (accounts) {
         }
       )
 
-      expectEvent(tx, 'Entry', { 
-        'from': someone,
-        'contestId': toBN(contestId),
-        'entryFee': toBN(entryFee), 
-        // 'playersArr': draftedPlayersArr included in emit but not supported by OpenZeppelin test-helper
-      });      
+      // Check balance after sending fees
 
-      // Check contest balance after sending fees
+      //Check Fee collector balance after sending fees
+      v = await this.token.balanceOf(feeCollector)
+      expect(v, "creationFee sent to feeCollector").to.be.eq.BN(10);
 
-      // await this.token.balanceOf(this.DFSManager.address).then(v => {
-      //   console.log(v.toString());
-      // })
+      //Check creator cut balance after sending fees
+      v = await this.token.balanceOf(operationManager)
+      expect(v, "creationFee sent to operationManager").to.be.eq.BN(10);      
+              
+
     })
     it("createContestEntry should revert if check signature fails", async function () {
-      const contestId=1
-      const entryFee=10
-      const draftedPlayersArr=[50, 70, 87, 45, 32, 34, 65, 63, 67, 98, 76]
+      const entryFee=toBN(10000)
+      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
   
       const createEntryArgs = {
-        'contestId': contestId,
-        'entryFee': entryFee,
-        //'draftedPlayersArr': draftedPlayersArr,
-        'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.DFSManager.address
+          'sender': someone,
+          'contestHash': this.createdContestHash,
+          'entryFee': entryFee,
+          'draftedPlayers': draftedPlayers,
+          'chainId' : await web3.eth.net.getId(),
+          'verifyingContract' : this.DFSManager.address
       };
-  
       const entryHash = createEntryHash(createEntryArgs);
       const orderSomeoneSignature = await createSignature(entryHash, someone);  
 
@@ -357,9 +389,9 @@ contract('DFSManager', function (accounts) {
   
       await expectRevert(
         this.DFSManager.createContestEntry(
-          contestId, 
+          this.createdContestHash, 
           entryFee, 
-          draftedPlayersArr, 
+          draftedPlayers, 
           orderSomeoneSignature, 
           // EIP712.
           orderExpiration,
@@ -368,19 +400,19 @@ contract('DFSManager', function (accounts) {
           { 
             from: someone 
           }
-        ), "_checkOrderSignature() - invalid admin signature");      
+        ), "createEntry() - invalid admin signature");      
     })
   })
 
-  describe("claimReward", function () {
-    it("claimReward should send rewards and emit event", async function () {
+  describe("claimContesEntry", function () {
+    it("claimContesEntry should send rewards and emit event", async function () {
 
-      const contestId=1
-      const rewardAmount=10
+      const claimedAmount=toBN(10000)
   
       const claimRewardArgs = {
-          'contestId': contestId,
-          'rewardAmount': rewardAmount,
+          'sender': someone,  
+          'claimedAmount': claimedAmount,
+          'entryHashArr': this.createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
           'verifyingContract' : this.DFSManager.address
       };
@@ -388,31 +420,28 @@ contract('DFSManager', function (accounts) {
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderAdminSignature = await createSignature(rewardHash, admin);   
       
-      const tx = await this.DFSManager.claimReward(
-        contestId, 
-        rewardAmount, 
+      const tx = await this.DFSManager.claimContesEntry(
+        claimedAmount, 
+        [this.createdEntryHash], 
         orderAdminSignature, 
         { 
           from: someone 
         }        
       )
-
-      expectEvent(tx, 'Claim', { 
-        'from': someone,
-        'contestId': toBN(contestId),
-        'claimAmount': toBN(rewardAmount), 
-      });      
       
-
+      //Check sent rewars
+      v = await this.token.balanceOf(someone)
+      expect(v, "reward sent to someonne").to.be.eq.BN(claimedAmount);      
+              
     })
-    it("claimReward should revert if check signature fails", async function () {
+    it("claimContesEntry should revert if check signature fails", async function () {
 
-      const contestId=1
-      const rewardAmount=10
+      const claimedAmount=toBN(10000)
   
       const claimRewardArgs = {
-          'contestId': contestId,
-          'rewardAmount': rewardAmount,
+          'sender': someone,  
+          'claimedAmount': claimedAmount,
+          'entryHashArr': this.createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
           'verifyingContract' : this.DFSManager.address
       };
@@ -421,14 +450,14 @@ contract('DFSManager', function (accounts) {
       const orderSomeoneSignature = await createSignature(rewardHash, someone);   
       
       await expectRevert(
-        this.DFSManager.claimReward(
-          contestId, 
-          rewardAmount, 
-          orderSomeoneSignature, 
+        this.DFSManager.claimContesEntry(
+          claimedAmount, 
+          [this.createdEntryHash], 
+          orderSomeoneSignature,
           { 
             from: someone 
           }        
-        ), "_checkOrderSignature() - invalid admin signature");         
+        ), "claimReward() - invalid admin signature");         
 
     })
   })

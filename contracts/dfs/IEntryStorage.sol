@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 interface IEntryStorage {
     
     event CreateEntry(
-        bytes32 entyHash,
+        bytes32 entryHash,
         address indexed from,
         bytes32 indexed contestHash,
         bytes draftedPlayers
