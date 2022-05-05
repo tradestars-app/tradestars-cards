@@ -19,8 +19,8 @@ const { randomBytes } = require('crypto');
 
 const ERC20 = artifacts.require('MockERC20');
 const DFSManager = artifacts.require('DFSManager');
-const contestStorage = artifacts.require('MockContestStorage')
-const entryStorage = artifacts.require('MockEntryStorage')
+const contestStorage = artifacts.require('ContestStorage')
+const entryStorage = artifacts.require('EntryStorage')
 
 contract('DFSManager', function (accounts) {
 
