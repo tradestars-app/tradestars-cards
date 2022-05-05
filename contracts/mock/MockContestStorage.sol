@@ -11,7 +11,16 @@ contract MockContestStorage is IContestStorage {
     ) 
         external pure override returns (ContestInfo memory) 
     {
-
+            return ContestInfo({
+            creator: "",
+            entryFee: _entryFee,
+            selectedGames: _selectedGames,
+            contestIdType: _contestIdType,
+            platformCut: _platformCut,
+            creatorCut: _creatorCut,
+            maxParticipants: _maxParticipants,
+            participantsCount: 0
+        });
     }
 
     function createContest(
