@@ -77,6 +77,13 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
     }
 
     /**
+     * @dev Check if provided provided message hash and signature are OK
+     */
+    function setAdminAddress(address _newAdmin) external onlyOwner {
+        validAdminAddress = _newAdmin;
+    }
+
+    /**
      * @dev sets the platforms fee collector
      * @param _feeCollector address
      */
