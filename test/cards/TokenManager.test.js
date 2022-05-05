@@ -6,7 +6,7 @@ const {
 } = require('@openzeppelin/test-helpers')
 
 const { toBN, toWei, fromWei, soliditySha3 } = require('web3-utils');
-const { balanceSnap } = require('./helpers/balanceSnap')
+const { balanceSnap } = require('../helpers/balanceSnap')
 
 /// Used in EIP712
 const ethSign = require('eth-sig-util');

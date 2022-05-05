@@ -6,7 +6,7 @@ const {
 } = require('@openzeppelin/test-helpers');
 
 const { toBN, toWei } = require('web3-utils');
-const { balanceSnap } = require('./helpers/balanceSnap')
+const { balanceSnap } = require('../helpers/balanceSnap')
 
 const { expect } = require('chai');
 
