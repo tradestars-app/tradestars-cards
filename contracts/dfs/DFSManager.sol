@@ -89,6 +89,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      * @param _creationFee fee for contest create
      * @param _entryFee to create a contest entry
      * @param _selectedGames a concat string of the drafted players
+     * @param _maxParticipants a concat string of the drafted players
      * @param _contestIdType uint specifing contest type
      * @param _platformCut percentage of the entry fee that goes to platform
      * @param _creatorCut percentage of the entry fee that goes to creator
@@ -101,6 +102,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         uint256 _creationFee,
         uint256 _entryFee,
         bytes memory _selectedGames,
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut,
@@ -110,7 +112,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         bytes32 _orderId,
         bytes memory _eip712TransferSignature
     ) 
-        external override
+        public override
     {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
@@ -120,6 +122,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
                 _creationFee,
                 _entryFee,
                 _selectedGames,
+                _maxParticipants,
                 _contestIdType,
                 _platformCut,
                 _creatorCut,
@@ -134,14 +137,16 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             "createEntry() - invalid admin signature"
         );
 
+        // NOTE: using encode vs encodePacked, check client hashing algo
+        bytes32 eipTransferHash = keccak256(
+            abi.encode(_orderId, address(reserveToken), _creationFee)
+        );
+
         // Transfer TSX _entryFee from sender using EIP712 signature
         ITransferWithSig(address(reserveToken)).transferWithSig(
             _eip712TransferSignature,
             _creationFee,
-            keccak256(
-                // NOTE: using encode vs encodePacked, check client hashing algo
-                abi.encode(_orderId, address(reserveToken), _entryFee)
-            ),
+            eipTransferHash,
             _expiration,
             msgSender(),    // from
             address(this)   // to
@@ -152,6 +157,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             msgSender(), 
             _selectedGames,
             _entryFee,
+            _maxParticipants,
             _contestIdType,
             _platformCut, 
             _creatorCut
@@ -166,8 +172,9 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      *   contestType, entryFee, selectedGames and cuts 
      *
      * @param _contestHash of the editable contest
-     * @param _entryFee fee for contest create
      * @param _selectedGames selected games
+     * @param _entryFee fee for contest create
+     * @param _maxParticipants allowed on the contest 
      * @param _contestIdType contest type
      * @param _platformCut platform cut
      * @param _creatorCut creator cut
@@ -175,8 +182,9 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      */
     function EditContest(
         bytes32 _contestHash,
-        uint256 _entryFee,
         bytes memory _selectedGames,
+        uint256 _entryFee,
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut,
@@ -193,6 +201,8 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
                 sender,
                 _contestHash,
                 _selectedGames,
+                _entryFee,
+                _maxParticipants,
                 _contestIdType,
                 _platformCut,
                 _creatorCut, 
@@ -210,8 +220,9 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         contestStorage.editContest(
             sender, 
             _contestHash,
-            _entryFee,
             _selectedGames,
+            _entryFee,
+            _maxParticipants,
             _contestIdType,
             _platformCut,
             _creatorCut

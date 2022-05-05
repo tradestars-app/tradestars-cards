@@ -9,6 +9,7 @@ interface IDFSManager {
         uint256 _creationFee,
         uint256 _entryFee,
         bytes memory _selectedGames,
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut,
@@ -22,8 +23,9 @@ interface IDFSManager {
 
     function EditContest(
         bytes32 _contestHash,
-        uint256 _entryFee,
         bytes memory _selectedGames,
+        uint256 _entryFee,
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut,

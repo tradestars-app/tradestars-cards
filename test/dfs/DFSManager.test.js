@@ -10,13 +10,13 @@ const {toBN, soliditySha3 } = require('web3-utils');
 const { expect } = require('chai');
 
 const ethSign = require('eth-sig-util');
-const { getOrderTypedData } = require('./helpers/eip712utils');
+const { getOrderTypedData } = require('../helpers/eip712utils');
 
 const { toBuffer } = require('ethereumjs-util');
 const { randomBytes } = require('crypto');
 
 const ERC20 = artifacts.require('MockERC20');
-const ContestManager = artifacts.require('ContestManager');
+const DSFManager = artifacts.require('DSFManager');
 
 contract('ContestManager', function (accounts) {
 
