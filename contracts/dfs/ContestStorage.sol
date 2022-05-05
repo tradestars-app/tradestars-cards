@@ -45,6 +45,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
         address _sender, 
         bytes memory _selectedGames,
         uint256 _entryFee, 
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut
@@ -74,6 +75,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
             contestIdType: _contestIdType,
             platformCut: _platformCut,
             creatorCut: _creatorCut,
+            maxParticipants: _maxParticipants,
             participantsCount: 0
         });
 
@@ -84,10 +86,11 @@ contract ContestStorage is OperationManaged, IContestStorage {
             contestHash, 
             _sender, 
             _entryFee,
-            _selectedGames,
+            _maxParticipants,
             _contestIdType,
             _platformCut,
-            _creatorCut
+            _creatorCut,
+            _selectedGames
         );
     }
 
@@ -95,8 +98,9 @@ contract ContestStorage is OperationManaged, IContestStorage {
      * @dev Edits an already created entry.
      * @param _sender of the order
      * @param _contestHash for the entry
-     * @param _entryFee for the entry
      * @param _selectedGames array of concatenated playerIds of the draft
+     * @param _entryFee for the entry
+     * @param _maxParticipants allowed on the contest 
      * @param _contestIdType for the entry
      * @param _platformCut for the entry
      * @param _creatorCut for the entry
@@ -104,8 +108,9 @@ contract ContestStorage is OperationManaged, IContestStorage {
     function editContest(
         address _sender, 
         bytes32 _contestHash,
-        uint256 _entryFee, 
         bytes memory _selectedGames,
+        uint256 _entryFee,
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut
@@ -126,19 +131,21 @@ contract ContestStorage is OperationManaged, IContestStorage {
 
         // change contest params
         ci.entryFee = _entryFee;
-        ci.selectedGames = _selectedGames;
-        ci.contestIdType = _contestIdType;
-        ci.platformCut = _platformCut;
         ci.creatorCut = _creatorCut;
+        ci.platformCut = _platformCut;
+        ci.contestIdType = _contestIdType;
+        ci.selectedGames = _selectedGames;
+        ci.maxParticipants = _maxParticipants;
 
         emit EditContest( 
             _contestHash,
             _sender, 
             _entryFee,
-            _selectedGames,
+            _maxParticipants,
             _contestIdType,
             _platformCut,
-            _creatorCut
+            _creatorCut,
+            _selectedGames
         );
     }
 }

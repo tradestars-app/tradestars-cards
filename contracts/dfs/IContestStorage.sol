@@ -8,31 +8,34 @@ interface IContestStorage {
     struct ContestInfo {
         address creator;
         uint256 entryFee;
-        bytes selectedGames;
         uint8 contestIdType;
         uint8 platformCut;
         uint8 creatorCut; 
+        uint32 maxParticipants;
         uint32 participantsCount;
+        bytes selectedGames;
     }
 
     event CreateContest(
         bytes32 contestHash,
         address indexed creator,
         uint256 entryFee,
-        bytes selectedGames,
+        uint32 maxParticipants,
         uint8 contestIdType,
         uint8 platformCut,
-        uint8 creatorCut
+        uint8 creatorCut,
+        bytes selectedGames
     );
 
     event EditContest(
         bytes32 contestHash,
         address indexed creator,
         uint256 entryFee,
-        bytes selectedGames,
+        uint32 maxParticipants,
         uint8 contestIdType,
         uint8 platformCut,
-        uint8 creatorCut
+        uint8 creatorCut,
+        bytes selectedGames
     );
 
     function getContestByHash(
@@ -44,6 +47,7 @@ interface IContestStorage {
         address _sender, 
         bytes memory _selectedGames,
         uint256 _entryFee, 
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut
@@ -53,8 +57,9 @@ interface IContestStorage {
     function editContest(
         address _sender, 
         bytes32 _contestHash,
-        uint256 _entryFee, 
         bytes memory _selectedGames,
+        uint256 _entryFee, 
+        uint32 _maxParticipants,
         uint8 _contestIdType,
         uint8 _platformCut,
         uint8 _creatorCut
