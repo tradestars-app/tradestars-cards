@@ -21,7 +21,7 @@ interface IDFSManager {
     ) 
         external;
 
-    function EditContest(
+    function editContest(
         bytes32 _contestHash,
         bytes memory _selectedGames,
         uint256 _entryFee,
