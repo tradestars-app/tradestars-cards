@@ -124,7 +124,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
-            abi.encode(
+            abi.encodePacked(
                 msgSender(), 
                 _creationFee,
                 _entryFee,
@@ -146,7 +146,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
 
         // NOTE: using encode vs encodePacked, check client hashing algo
         bytes32 eipTransferHash = keccak256(
-            abi.encode(_orderId, address(reserveToken), _creationFee)
+            abi.encodePacked(_orderId, address(reserveToken), _creationFee)
         );
 
         // Transfer TSX _entryFee from sender using EIP712 signature
@@ -204,7 +204,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
-            abi.encode(
+            abi.encodePacked(
                 sender,
                 _contestHash,
                 _selectedGames,
@@ -263,7 +263,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
-            abi.encode(
+            abi.encodePacked(
                 sender,
                 _contestHash, 
                 _entryFee,
@@ -285,7 +285,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             _entryFee,
             keccak256(
                 // NOTE: using encode vs encodePacked, check client hashing algo
-                abi.encode(_orderId, address(reserveToken), _entryFee)
+                abi.encodePacked(_orderId, address(reserveToken), _entryFee)
             ),
             _expiration,
             sender,         // from
@@ -333,7 +333,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
-            abi.encode(
+            abi.encodePacked(
                 sender,
                 _entryHash,
                 _draftedPlayers, 
@@ -370,7 +370,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
-            abi.encode(
+            abi.encodePacked(
                 sender,
                 _claimedAmount,
                 _entryHashArr, 
