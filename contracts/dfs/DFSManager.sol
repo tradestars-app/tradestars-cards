@@ -180,7 +180,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      * @param _creatorCut creator cut
      * @param _orderAdminSignature admin signature validating the edit
      */
-    function EditContest(
+    function editContest(
         bytes32 _contestHash,
         bytes memory _selectedGames,
         uint256 _entryFee,
