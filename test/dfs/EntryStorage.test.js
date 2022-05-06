@@ -18,6 +18,11 @@ describe('EntryStorage', function () {
 
   let owner, someone, anotherone, allowedOpManager;
 
+  const entryArgs = {
+    'contestHash': web3.eth.abi.encodeParameter('bytes32', "0x100001"),
+    'draftedPlayers': web3.eth.abi.encodeParameter('string', "0001|0002")
+  };
+
   before(async function() {
 
     [ owner, someone, anotherone, allowedOpManager ] = await web3.eth.getAccounts();
@@ -44,12 +49,7 @@ describe('EntryStorage', function () {
     });
   });
 
-  describe('ABM Entries', function() {
-
-    const entryArgs = {
-      'contestHash': web3.eth.abi.encodeParameter('bytes32', "0x100001"),
-      'draftedPlayers': web3.eth.abi.encodeParameter('string', "0001|0002")
-    };
+  describe('Test Entries ABM', function() {
 
     it(`Fails create from non op manager`, async function() {
       await expectRevert(
@@ -148,6 +148,68 @@ describe('EntryStorage', function () {
         ),
         "editEntry() - invalid owner"
       );
+    });
+  });
+
+  describe('Test Claim entries', function() {
+    it(`Fails claim by non op manager`, async function() {
+      const entryHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: entryArgs.contestHash }, 
+        { t: 'uint256', v: 0 }, // created entry nonce
+      );
+    
+      await expectRevert(
+        this.contract.claimEntry(
+          someone, 
+          entryHash,
+          {
+            from: anotherone 
+          }
+        ),
+        "caller is not allowed"
+      );
+    });
+    
+    it(`Fails claim by invalid owner`, async function() {
+ 
+      const entryHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: entryArgs.contestHash }, 
+        { t: 'uint256', v: 0 }, // created entry nonce
+      );
+    
+      await expectRevert(
+        this.contract.claimEntry(
+          anotherone, 
+          entryHash,
+          {
+            from: allowedOpManager 
+          }
+        ),
+        "claimEntry() - invalid owner"
+      );
+    });
+
+    it(`Claims entry OK`, async function() {
+      const entryHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: entryArgs.contestHash }, 
+        { t: 'uint256', v: 0 }, // created entry nonce
+      );
+      const tx = await this.contract.claimEntry(
+        someone, 
+        entryHash,
+        {
+          from: allowedOpManager 
+        }
+      );
+
+      expectEvent(tx, 'ClaimEntry', { 
+        'from': someone,
+        'entryHash': entryHash
+      });
+
     });
   });
 });
