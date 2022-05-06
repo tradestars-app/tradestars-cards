@@ -24,7 +24,7 @@ const entryStorage = artifacts.require('EntryStorage')
 
 contract('DFSManager', function (accounts) {
 
-  const [owner, admin, operationManager, feeCollector, someone, anotherone ] = accounts;
+  const [owner, admin, operationManager, feeCollector, someone, anotherone, newDFSManager ] = accounts;
   let pks = {};
   pks[operationManager] = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';  
   pks[someone] = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab375b';  
@@ -58,6 +58,22 @@ contract('DFSManager', function (accounts) {
     );
   }
 
+  const editContestHash = (args) => {
+    return soliditySha3(
+      { t: 'bytes', v: args['sender'] },
+      { t: 'uint256', v: args['contestHash'] },
+      { t: 'bytes', v: args['selectedGames'] },
+      { t: 'uint256', v: args['entryFee'] },
+      { t: 'uint32', v: args['maxParticipants'] },      
+      { t: 'uint8', v: args['contestIdType'] },      
+      { t: 'uint8', v: args['platformCut'] },      
+      { t: 'uint8', v: args['creatorCut'] },      
+      // add chainID and Contract to order hash
+      { t: 'uint256', v: args['chainId'] },
+      { t: 'address', v: args['verifyingContract'] },
+    );
+  }
+
   const createEntryHash = (args) => {
     return soliditySha3(
       { t: 'bytes', v: args['sender'] },
@@ -69,6 +85,17 @@ contract('DFSManager', function (accounts) {
       { t: 'address', v: args['verifyingContract'] },
     );
   }
+
+  const editEntryHash = (args) => {
+    return soliditySha3(
+      { t: 'bytes', v: args['sender'] },
+      { t: 'uint256', v: args['entryHash'] },
+      { t: 'bytes', v: args['draftedPlayers'] },
+      // add chainID and Contract to order hash
+      { t: 'uint256', v: args['chainId'] },
+      { t: 'address', v: args['verifyingContract'] },
+    );
+  }  
 
   const claimRewardHash = (args) => {
     return soliditySha3(
@@ -88,7 +115,7 @@ contract('DFSManager', function (accounts) {
       // create ContestStorage & set operation manager
       this.contestStorage = await contestStorage.new()
 
-      // set operation manager
+      // set contest operation manager
       await this.contestStorage.setOperationManager(
         operationManager,
         {
@@ -108,11 +135,18 @@ contract('DFSManager', function (accounts) {
       // create EntryStorage
       this.entryStorage = await entryStorage.new()
 
+      // set entry operation manager
+      await this.entryStorage.setOperationManager(
+        operationManager,
+        {
+          from:owner
+        }
+      )
       // create Entry for contest
       tx = await this.entryStorage.createEntry(
         someone, this.createdContestHash, "0x2233373635342c203132333231332c2031323331323322",
         {
-          from: someone
+          from: operationManager
         }
       )
       this.createdEntryHash = tx.logs[0].args.entryHash   
@@ -138,6 +172,27 @@ contract('DFSManager', function (accounts) {
         feeCollector
       );
 
+  })
+
+  describe("migrateReserve", function () {
+    it("migrateReserve should transfer balance to new DFSManager", async function () {
+
+      balanceToMigrate = await this.token.balanceOf(this.DFSManager.address)
+
+      await this.DFSManager.migrateReserve(newDFSManager);
+
+      newDFSManagerBalance = await this.token.balanceOf(newDFSManager)
+      oldDFSManagerBalance = await this.token.balanceOf(this.DFSManager.address)
+
+      // Check expected behaviour after migration
+      
+      expect(oldDFSManagerBalance,
+      "old DFSManager has 0 tokens").to.be.eq.BN(0);
+
+      expect(newDFSManagerBalance,
+      "new DFSManager has balance").to.be.eq.BN(balanceToMigrate);    
+    
+    })
   })
 
   describe("createContest", function () {
@@ -185,7 +240,7 @@ contract('DFSManager', function (accounts) {
           toBuffer(pks[operationManager]), { data: typedData }
           );
   
-      // set operation manager
+      // set DFSManager as operation manager
       await this.contestStorage.setOperationManager(
         this.DFSManager.address,
         {
@@ -292,6 +347,104 @@ contract('DFSManager', function (accounts) {
 
   })
 
+  describe("editContest", function() {
+    it("editContest should call edit contest", async function () {
+
+      const entryFee=10
+      const selectedGames="0x2233373635342c203132333231332c2031323331323322"
+      const maxParticipants=50
+      const contestIdType=2
+      const platformCut=10
+      const creatorCut=10
+
+      const editContestArgs = {
+        'sender': operationManager,
+        'contestHash': this.createdContestHash,
+        'selectedGames': selectedGames,
+        'entryFee': entryFee,
+        'maxParticipants': maxParticipants,
+        'contestIdType': contestIdType,
+        'platformCut': platformCut,
+        'creatorCut': creatorCut,
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.DFSManager.address
+      };
+  
+      const contestHash = editContestHash(editContestArgs);
+      const orderAdminSignature = await createSignature(contestHash, admin);  
+
+      // set DFSManager as operation manager
+      await this.contestStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )
+
+      await this.DFSManager.editContest(
+          this.createdContestHash, 
+          selectedGames,
+          entryFee, 
+          maxParticipants,
+          contestIdType,
+          platformCut,
+          creatorCut,
+          orderAdminSignature,
+          { 
+            from: operationManager 
+          }
+        )
+    })
+    it("editContest should fail if check signature fails", async function () {
+      
+      const entryFee=10
+      const selectedGames="0x2233373635342c203132333231332c2031323331323322"
+      const maxParticipants=50
+      const contestIdType=2
+      const platformCut=10
+      const creatorCut=10
+
+      const editContestArgs = {
+        'sender': operationManager,
+        'contestHash': this.createdContestHash,
+        'selectedGames': selectedGames,
+        'entryFee': entryFee,
+        'maxParticipants': 5, // Diferent from 50. Check sig will fail
+        'contestIdType': contestIdType,
+        'platformCut': platformCut,
+        'creatorCut': creatorCut,
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.DFSManager.address
+      };
+  
+      const contestHash = editContestHash(editContestArgs);
+      const orderAdminSignature = await createSignature(contestHash, admin);  
+
+      // set DFSManager as operation manager
+      await this.contestStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )
+
+      await expectRevert(this.DFSManager.editContest(
+          this.createdContestHash, 
+          selectedGames,
+          entryFee, 
+          maxParticipants,
+          contestIdType,
+          platformCut,
+          creatorCut,
+          orderAdminSignature,
+          { 
+            from: operationManager 
+          }
+        ), "editContestEntry() - invalid admin signature")
+
+    })
+  })
+
   describe("createContestEntry", function () {
     it("createEntry should transfer fee and emit event", async function () {
 
@@ -327,8 +480,16 @@ contract('DFSManager', function (accounts) {
        const eip712TransferSignature = ethSign.signTypedData(
           toBuffer(pks[someone]), { data: typedData }
           );  
+
+      // set DFSManager as operation manager
+      await this.entryStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )          
   
-      const tx = await this.DFSManager.createContestEntry(
+      await this.DFSManager.createContestEntry(
         this.createdContestHash, 
         entryFee, 
         draftedPlayers, 
@@ -404,6 +565,74 @@ contract('DFSManager', function (accounts) {
     })
   })
 
+  describe("editContestEntry", function() {
+    it("editContestEntry should call edit entry", async function () {
+
+      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+  
+      const editEntryArgs = {
+          'sender': someone,
+          'entryHash': this.createdEntryHash,
+          'draftedPlayers': draftedPlayers,
+          'chainId' : await web3.eth.net.getId(),
+          'verifyingContract' : this.DFSManager.address
+      };
+  
+      const entryHash = editEntryHash(editEntryArgs);
+      const orderAdminSignature = await createSignature(entryHash, admin);   
+      
+      // set DFSManager as operation manager
+      await this.entryStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )          
+  
+      await this.DFSManager.editContestEntry(
+        this.createdEntryHash, 
+        draftedPlayers, 
+        orderAdminSignature, 
+        { 
+          from: someone 
+        }
+      )  
+              
+    })
+    it("editContestEntry should fail if check signature fails", async function () {
+      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+  
+      const editEntryArgs = {
+          'sender': anotherone, // check signature will fail
+          'entryHash': this.createdEntryHash,
+          'draftedPlayers': draftedPlayers,
+          'chainId' : await web3.eth.net.getId(),
+          'verifyingContract' : this.DFSManager.address
+      };
+  
+      const entryHash = editEntryHash(editEntryArgs);
+      const orderAdminSignature = await createSignature(entryHash, admin);   
+      
+      // set DFSManager as operation manager
+      await this.entryStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )          
+  
+      await expectRevert(this.DFSManager.editContestEntry(
+        this.createdEntryHash, 
+        draftedPlayers, 
+        orderAdminSignature, 
+        { 
+          from: someone 
+        }
+      ), "editContestEntry() - invalid admin signature")
+        
+    })
+  })
+
   describe("claimContesEntry", function () {
     it("claimContesEntry should send rewards and emit event", async function () {
 
@@ -420,6 +649,14 @@ contract('DFSManager', function (accounts) {
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderAdminSignature = await createSignature(rewardHash, admin);   
       
+      // set DFSManager as operation manager
+      await this.entryStorage.setOperationManager(
+        this.DFSManager.address,
+        {
+          from: owner
+        }
+      )
+
       const tx = await this.DFSManager.claimContesEntry(
         claimedAmount, 
         [this.createdEntryHash], 
@@ -461,4 +698,5 @@ contract('DFSManager', function (accounts) {
 
     })
   })
+
 });
