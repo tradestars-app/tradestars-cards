@@ -288,6 +288,69 @@ describe('DFSManager', function (accounts) {
 
     })
 
+    it("should fail create entry if check sign fails", async function (){
+      const entryFee=toWei('10', 'ether')
+      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );      
+  
+      const createEntryArgs = {
+          'creator': someone,
+          'contestHash': createdContestHash,
+          'entryFee': entryFee,
+          'draftedPlayers': draftedPlayers,
+      };
+
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const entryHash = createEntryHash(
+        { ...createEntryArgs, ...signatureParams }
+      );      
+  
+      const orderInvalidSignature = await createSignature(entryHash, anotherone);   
+      
+      // EIP712
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
+      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        orderExpiration,
+        this.reserveToken.address, /// The token contract address
+        entryFee,  // tokens amount
+        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        someone // from address included in the EIP712signature
+      );
+
+      // PK for msgSender
+      const eip712TransferSignature = ethSign.signTypedData(
+          toBuffer(pks[someone]), { data: typedData }
+          );  
+  
+
+      await expectRevert(this.dsfManager.createContestEntry(
+        createdContestHash, 
+        entryFee, 
+        draftedPlayers, 
+        orderInvalidSignature, 
+        // EIP712.
+        orderExpiration,
+        orderId,
+        eip712TransferSignature,
+        { 
+          from: someone 
+        }
+      ),"revert")
+
+    })
+
     it("should create entry for created contest", async function () {
 
       const entryFee=toWei('10', 'ether')
@@ -370,7 +433,15 @@ describe('DFSManager', function (accounts) {
         toBN(createEntryArgs.entryFee) // amount increase in reserve
       );      
 
+    })    
+
+    it("should edit entry for created contest", async function () {
+
     })
+
+    it("should fail edit entry if check sign fails", async function () {
+
+    })    
 
   })
 
