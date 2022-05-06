@@ -93,46 +93,41 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
 
     /**
      * @dev Creates a contest
-     * @param _creationFee fee for contest create
-     * @param _entryFee to create a contest entry
-     * @param _selectedGames a concat string of the drafted players
-     * @param _maxParticipants a concat string of the drafted players
-     * @param _contestIdType uint specifing contest type
-     * @param _platformCut percentage of the entry fee that goes to platform
-     * @param _creatorCut percentage of the entry fee that goes to creator
+     * @param _contestArgs contest arguments
      * @param _orderAdminSignature admin signature validating the entry
-     * @param _expiration for EIP712 order call
-     * @param _orderId for EIP712 order call
+     * @param _eip721OrderExpiration for EIP712 order call
+     * @param _eip721OrderId for EIP712 order call
      * @param _eip712TransferSignature EIP712 transfer signature for reserve token
      */
     function createContest(
-        uint256 _creationFee,
-        uint256 _entryFee,
-        bytes memory _selectedGames,
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut,
+        IContestStorage.ContestInfo memory _contestArgs,
         bytes memory _orderAdminSignature,
         // These are required for EIP712
-        uint256 _expiration,
-        bytes32 _orderId,
+        uint256 _eip721OrderExpiration,
+        bytes32 _eip721OrderId,
         bytes memory _eip712TransferSignature
     ) 
-        public override
+        external override
     {
+        require(
+            _contestArgs.creator == msgSender(), 
+            "createContest() - creator invalid"
+        );
+
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
             abi.encodePacked(
-                msgSender(), 
-                _creationFee,
-                _entryFee,
-                _selectedGames,
-                _maxParticipants,
-                _contestIdType,
-                _platformCut,
-                _creatorCut,
+                _contestArgs.creator, 
+                _contestArgs.creationFee,
+                _contestArgs.entryFee,
+                _contestArgs.contestIdType,
+                _contestArgs.platformCut,
+                _contestArgs.creatorCut,
+                _contestArgs.maxParticipants,
+                _contestArgs.isGuaranteed,
+                _contestArgs.selectedGames,
+                // 
                 block.chainid, 
                 address(this)
             )
@@ -146,32 +141,31 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
 
         // NOTE: using encode vs encodePacked, check client hashing algo
         bytes32 eipTransferHash = keccak256(
-            abi.encodePacked(_orderId, address(reserveToken), _creationFee)
+            abi.encodePacked(
+                _eip721OrderId, 
+                address(reserveToken), 
+                _contestArgs.creationFee
+            )
         );
 
         // Transfer TSX _entryFee from sender using EIP712 signature
         ITransferWithSig(address(reserveToken)).transferWithSig(
             _eip712TransferSignature,
-            _creationFee,
+            _contestArgs.creationFee,
             eipTransferHash,
-            _expiration,
-            msgSender(),    // from
-            address(this)   // to
+            _eip721OrderExpiration,
+            _contestArgs.creator,        // from
+            address(this)               // to
         );
 
         // create contest
-        contestStorage.createContest(
-            msgSender(), 
-            _selectedGames,
-            _entryFee,
-            _maxParticipants,
-            _contestIdType,
-            _platformCut, 
-            _creatorCut
-        );
+        contestStorage.createContest(_contestArgs);
 
         // Send creator fee 
-        reserveToken.safeTransfer(feeCollector, _creationFee);
+        reserveToken.safeTransfer(
+            feeCollector, 
+            _contestArgs.creationFee
+        );
     }
 
     /**
@@ -179,40 +173,35 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      *   contestType, entryFee, selectedGames and cuts 
      *
      * @param _contestHash of the editable contest
-     * @param _selectedGames selected games
-     * @param _entryFee fee for contest create
-     * @param _maxParticipants allowed on the contest 
-     * @param _contestIdType contest type
-     * @param _platformCut platform cut
-     * @param _creatorCut creator cut
+     * @param _contestArgs of the editable contest
      * @param _orderAdminSignature admin signature validating the edit
      */
     function editContest(
         bytes32 _contestHash,
-        bytes memory _selectedGames,
-        uint256 _entryFee,
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut,
+        IContestStorage.ContestInfo memory _contestArgs,
         bytes memory _orderAdminSignature
     ) 
         external override
     {
-        address sender = msgSender();
+        require(
+            _contestArgs.creator == msgSender(), 
+            "createContest() - creator invalid"
+        );
 
         // Check hashed message & admin signature
         bytes32 orderHash = keccak256(
             // NOTE: using encode vs encodePacked, check client hashing algo
             abi.encodePacked(
-                sender,
-                _contestHash,
-                _selectedGames,
-                _entryFee,
-                _maxParticipants,
-                _contestIdType,
-                _platformCut,
-                _creatorCut, 
+                _contestArgs.creator, 
+                _contestArgs.creationFee,
+                _contestArgs.entryFee,
+                _contestArgs.contestIdType,
+                _contestArgs.platformCut,
+                _contestArgs.creatorCut,
+                _contestArgs.maxParticipants,
+                _contestArgs.isGuaranteed,
+                _contestArgs.selectedGames,
+                //
                 block.chainid, 
                 address(this)
             )
@@ -224,16 +213,7 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             "editContestEntry() - invalid admin signature"
         );
 
-        contestStorage.editContest(
-            sender, 
-            _contestHash,
-            _selectedGames,
-            _entryFee,
-            _maxParticipants,
-            _contestIdType,
-            _platformCut,
-            _creatorCut
-        );
+        contestStorage.editContest(_contestHash, _contestArgs);
     }
 
     /**
@@ -242,8 +222,8 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
      * @param _entryFee contribution fee for entering the contest
      * @param _draftedPlayers a concat string of the drafted players
      * @param _orderAdminSignature admin signature validating the entry
-     * @param _expiration for EIP712 order call
-     * @param _orderId for EIP712 order call
+     * @param _eip721OrderExpiration for EIP712 order call
+     * @param _eip721OrderId for EIP712 order call
      * @param _eip712TransferSignature EIP712 transfer signature for reserve token
      */
     function createContestEntry(
@@ -252,8 +232,8 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         bytes memory _draftedPlayers,
         bytes memory _orderAdminSignature,
         // These are required for EIP712
-        uint256 _expiration,
-        bytes32 _orderId,
+        uint256 _eip721OrderExpiration,
+        bytes32 _eip721OrderId,
         bytes memory _eip712TransferSignature
     )
         external override
@@ -285,9 +265,9 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             _entryFee,
             keccak256(
                 // NOTE: using encode vs encodePacked, check client hashing algo
-                abi.encodePacked(_orderId, address(reserveToken), _entryFee)
+                abi.encodePacked(_eip721OrderId, address(reserveToken), _entryFee)
             ),
-            _expiration,
+            _eip721OrderExpiration,
             sender,         // from
             address(this)   // to
         );
@@ -300,6 +280,12 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             "createEntry() - entry fee mismatch"
         );
 
+        // increase the participants counter
+        entryStorage.createEntry(sender, _contestHash, _draftedPlayers);
+        
+        // create the entry
+        contestStorage.increaseParticipantsCount(_contestHash);
+        
         // Calc fees
         uint256 creatorCut = (ci.entryFee * ci.creatorCut) / MATH_PRECISION;
         uint256 platformCut = (ci.entryFee * ci.platformCut) / MATH_PRECISION;
@@ -307,12 +293,6 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Send creator / platform fees
         reserveToken.safeTransfer(ci.creator, creatorCut);
         reserveToken.safeTransfer(feeCollector, platformCut);
-
-        // create the entry
-        entryStorage.createEntry(sender, _contestHash, _draftedPlayers);
-        
-        // increase the participants counter
-        ci.participantsCount += 1;
     }
 
     /**
