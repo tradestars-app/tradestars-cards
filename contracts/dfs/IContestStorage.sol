@@ -43,6 +43,11 @@ interface IContestStorage {
     ) 
         external returns (ContestInfo memory);
 
+    function increaseParticipantsCount(
+        bytes32 _contestHash
+    ) 
+        external;
+
     function createContest(
         address _sender, 
         bytes memory _selectedGames,

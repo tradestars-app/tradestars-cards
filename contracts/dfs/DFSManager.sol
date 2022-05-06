@@ -300,6 +300,12 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             "createEntry() - entry fee mismatch"
         );
 
+        // increase the participants counter
+        entryStorage.createEntry(sender, _contestHash, _draftedPlayers);
+        
+        // create the entry
+        contestStorage.increaseParticipantsCount(_contestHash);
+        
         // Calc fees
         uint256 creatorCut = (ci.entryFee * ci.creatorCut) / MATH_PRECISION;
         uint256 platformCut = (ci.entryFee * ci.platformCut) / MATH_PRECISION;
@@ -307,12 +313,6 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
         // Send creator / platform fees
         reserveToken.safeTransfer(ci.creator, creatorCut);
         reserveToken.safeTransfer(feeCollector, platformCut);
-
-        // create the entry
-        entryStorage.createEntry(sender, _contestHash, _draftedPlayers);
-        
-        // increase the participants counter
-        ci.participantsCount += 1;
     }
 
     /**

@@ -37,6 +37,22 @@ contract ContestStorage is OperationManaged, IContestStorage {
     }
 
     /**
+     * @dev Increase participants count for contestHash
+     * @param _contestHash for the created the contest
+     */
+    function increaseParticipantsCount(
+        bytes32 _contestHash
+    ) 
+        external override onlyOperationManager
+    {
+        require(
+            contestsInfoHash[_contestHash].creator != address(0), 
+            "getContestByHash() - invalid hash"
+        );
+        contestsInfoHash[_contestHash].participantsCount += 1;
+    }
+
+    /**
      * @dev Creates a new contest entry.  
      * @param _sender of the order
      * @param _selectedGames array of concatenated gameIds for the contest
