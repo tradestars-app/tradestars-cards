@@ -95,7 +95,7 @@ describe('DFSManager', function (accounts) {
     this.reserveToken.setDepositor(depositorRole, { from: owner });
     
     // mint tokens to test accounts 
-    const fundAmount = toWei('100', 'ether');
+    const fundAmount = toWei('1000', 'ether');
 
     await this.reserveToken.deposit(
       someone, web3.eth.abi.encodeParameter('uint256', fundAmount), { 
@@ -130,6 +130,7 @@ describe('DFSManager', function (accounts) {
     // sets DFSManager's admin and Fee collector addr.
     await this.dsfManager.setAdminAddress(admin, { from: owner });
     await this.dsfManager.setFeeCollector(feeCollector, { from: owner });
+    
   });
 
   describe("Tests contests create", function () {
@@ -287,20 +288,20 @@ describe('DFSManager', function (accounts) {
 
     })
 
-  })
+    it("should create entry for created contest", async function () {
 
-  describe("Tests contests edits", function () {
-  })
-
-  describe("Tests contests entries", function () {
-    it("should create entry", async function () {
-
-      const entryFee=toBN(10000)
+      const entryFee=toWei('10', 'ether')
       const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );      
   
       const createEntryArgs = {
           'creator': someone,
-          'contestHash': this.createdContestHash,
+          'contestHash': createdContestHash,
           'entryFee': entryFee,
           'draftedPlayers': draftedPlayers,
       };
@@ -333,17 +334,18 @@ describe('DFSManager', function (accounts) {
       const eip712TransferSignature = ethSign.signTypedData(
           toBuffer(pks[someone]), { data: typedData }
           );  
-
-      // set DFSManager as operation manager
-      await this.entryStorage.setOperationManager(
-        this.DFSManager.address,
-        {
-          from: owner
-        }
-      )          
   
+
+      const creatorBalanceTracker = await balanceSnap(
+        this.reserveToken, someone, 'someones\s reserve balance'
+      );
+
+      const dfsManagerBalanceTracker = await balanceSnap(
+        this.reserveToken, this.dsfManager.address, 'someones\s reserve balance'
+      );      
+
       const tx = await this.dsfManager.createContestEntry(
-        this.createdContestHash, 
+        createdContestHash, 
         entryFee, 
         draftedPlayers, 
         orderAdminSignature, 
@@ -358,63 +360,18 @@ describe('DFSManager', function (accounts) {
 
       // Check balance after sending fees
 
-      //Check Fee collector balance after sending fees
-      v = await this.reserveToken.balanceOf(feeCollector)
-      expect(v, "creationFee sent to feeCollector").to.be.eq.BN(10);
+      // check balance of sender
+      await creatorBalanceTracker.requireDecrease(
+        toBN(createEntryArgs.entryFee) // amount decrease in reserve
+      );     
 
-      //Check creator cut balance after sending fees
-      v = await this.reserveToken.balanceOf(operationManager)
-      expect(v, "creationFee sent to operationManager").to.be.eq.BN(10);      
+      /// check balance of dfsManager
+      await dfsManagerBalanceTracker.requireIncrease(
+        toBN(createEntryArgs.entryFee) // amount increase in reserve
+      );      
+
     })
 
-    it("sould revert if signature fails", async function () {
-      const entryFee=toBN(10000)
-      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
-  
-      const createEntryArgs = {
-          'sender': someone,
-          'contestHash': this.createdContestHash,
-          'entryFee': entryFee,
-          'draftedPlayers': draftedPlayers,
-          'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.dsfManager.address
-      };
-      const entryHash = createEntryHash(createEntryArgs);
-      const orderSomeoneSignature = await createSignature(entryHash, someone);  
-
-      // EIP712
-      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
-      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
-
-      const typedData = getOrderTypedData(
-        orderId,
-        orderExpiration,
-        this.reserveToken.address, /// The token contract address
-        entryFee,  // tokens amount
-        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
-        someone // from address included in the EIP712signature
-      );
-
-      // PK for msgSender
-      const eip712TransferSignature = ethSign.signTypedData(
-          toBuffer(pks[someone]), { data: typedData }
-          );
-  
-      await expectRevert(
-        this.dsfManager.createContestEntry(
-          this.createdContestHash, 
-          entryFee, 
-          draftedPlayers, 
-          orderSomeoneSignature, 
-          // EIP712.
-          orderExpiration,
-          orderId,
-          eip712TransferSignature,
-          { 
-            from: someone 
-          }
-        ), "createEntry() - invalid admin signature");      
-    })
   })
 
   describe("Tests contest migrateReserve", function () {
