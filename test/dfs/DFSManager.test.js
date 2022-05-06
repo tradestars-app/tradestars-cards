@@ -478,7 +478,7 @@ describe('DFSManager', function (accounts) {
       );      
 
       const entryNonce = 0;
-      const createdEntryHash = soliditySha3(
+      this.createdEntryHash = soliditySha3(
         { t: 'address', v: anotherone },
         { t: 'uint256', v: createdContestHash }, 
         { t: 'uint256', v: entryNonce }, 
@@ -486,7 +486,7 @@ describe('DFSManager', function (accounts) {
   
       const editEntryArgs = {
           'creator': anotherone,
-          'entryHash': createdEntryHash,
+          'entryHash': this.createdEntryHash,
           'draftedPlayers': draftedPlayers,
       };
 
@@ -503,7 +503,7 @@ describe('DFSManager', function (accounts) {
       const orderInvalidSignature = await createSignature(entryHash, someone);   
       
       await expectRevert(this.dsfManager.editContestEntry(
-        createdEntryHash, 
+        this.createdEntryHash, 
         draftedPlayers, 
         orderInvalidSignature, 
         { 
@@ -559,6 +559,64 @@ describe('DFSManager', function (accounts) {
 
     })    
 
+
+    it("claimContesEntry should send rewards and emit event", async function () {
+
+      const claimedAmount=toBN(10000)
+  
+      const claimRewardArgs = {
+          'sender': anotherone,  
+          'claimedAmount': claimedAmount,
+          'entryHashArr': this.createdEntryHash,
+          'chainId' : await web3.eth.net.getId(),
+          'verifyingContract' : this.dsfManager.address
+      };
+  
+      const rewardHash = claimRewardHash(claimRewardArgs);
+      const orderAdminSignature = await createSignature(rewardHash, admin);   
+      
+      const tx = await this.dsfManager.claimContesEntry(
+        claimedAmount, 
+        [this.createdEntryHash], 
+        orderAdminSignature, 
+        { 
+          from: anotherone 
+        }        
+      )
+      
+      //Check sent rewars
+      v = await this.token.balanceOf(anotherone)
+      expect(v, "reward sent to someonne").to.be.eq.BN(claimedAmount);      
+              
+    })
+    it("claimContesEntry should revert if check signature fails", async function () {
+
+      const claimedAmount=toBN(10000)
+  
+      const claimRewardArgs = {
+          'sender': someone,  
+          'claimedAmount': claimedAmount,
+          'entryHashArr': this.createdEntryHash,
+          'chainId' : await web3.eth.net.getId(),
+          'verifyingContract' : this.dfsManager.address
+      };
+  
+      const rewardHash = claimRewardHash(claimRewardArgs);
+      const orderSomeoneSignature = await createSignature(rewardHash, someone);   
+      
+      await expectRevert(
+        this.dfsManager.claimContesEntry(
+          claimedAmount, 
+          [this.createdEntryHash], 
+          orderSomeoneSignature,
+          { 
+            from: someone 
+          }        
+        ), "claimReward() - invalid admin signature");         
+
+    })  
+
+    
   })
 
   describe("Tests contest migrateReserve", function () {
