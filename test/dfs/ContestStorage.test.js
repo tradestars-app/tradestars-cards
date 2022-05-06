@@ -125,19 +125,12 @@ describe('ContestStorage', function () {
         { t: 'uint256', v: contestNonce }, 
       );
       
-      const newPlatformCut = toBN(0);
+      contestArgs.platformCut = 0;
 
       await expectRevert(
         this.contract.editContest(
-          someone, 
           contestHash,
-          contestArgs.selectedGames,
-          contestArgs.entryFee,
-          contestArgs.maxParticipants,
-          contestArgs.contestIdType,
-          newPlatformCut, // contestArgs.platformCut,
-          contestArgs.creatorCut,
-          contestArgs.isGuaranteed,
+          contestArgs,
           {
             from: anotherone 
           }
@@ -153,19 +146,13 @@ describe('ContestStorage', function () {
         { t: 'uint256', v: contestNonce }, 
       );
       
-      const newPlatformCut = toBN(0);
+      contestArgs.creator = anotherone;
+      contestArgs.platformCut = 0;
 
       await expectRevert(
         this.contract.editContest(
-          anotherone, 
           contestHash,
-          contestArgs.selectedGames,
-          contestArgs.entryFee,
-          contestArgs.maxParticipants,
-          contestArgs.contestIdType,
-          newPlatformCut, // contestArgs.platformCut,
-          contestArgs.creatorCut,
-          contestArgs.isGuaranteed,
+          contestArgs,
           {
             from: allowedOpManager 
           }
@@ -181,18 +168,12 @@ describe('ContestStorage', function () {
         { t: 'uint256', v: contestNonce }, 
       );
 
-      const newPlatformCut = toBN(0);
+      contestArgs.creator = someone;
+      contestArgs.newPlatformCut = 0;
 
       const tx = await this.contract.editContest(
-        someone, 
         contestHash,
-        contestArgs.selectedGames,
-        contestArgs.entryFee,
-        contestArgs.maxParticipants,
-        contestArgs.contestIdType,
-        newPlatformCut, // contestArgs.platformCut,
-        contestArgs.creatorCut,
-        contestArgs.isGuaranteed,
+        contestArgs,
         {
           from: allowedOpManager 
         }
@@ -200,14 +181,20 @@ describe('ContestStorage', function () {
 
       expectEvent(tx, 'EditContest', { 
         'contestHash': contestHash,
-        'creator': someone,
-        'entryFee': contestArgs.entryFee,
-        'maxParticipants': contestArgs.maxParticipants,
-        'contestIdType': contestArgs.contestIdType,
-        'platformCut': newPlatformCut, //contestArgs.platformCut,
-        'creatorCut': contestArgs.creatorCut,
-        'isGuaranteed': contestArgs.isGuaranteed,
+        'contestArgs': [ 
+          contestArgs.creator,
+          contestArgs.creationFee,
+          contestArgs.entryFee,
+          `${contestArgs.contestIdType}`,
+          `${contestArgs.platformCut}`,
+          `${contestArgs.creatorCut}`,
+          `${contestArgs.maxParticipants}`,
+          `${contestArgs.participantsCount}`,
+          contestArgs.isGuaranteed,
+          contestArgs.selectedGames,
+        ],
       });
+
     });
 
     it(`Increase participants counter OK`, async function() {
@@ -233,19 +220,12 @@ describe('ContestStorage', function () {
         { t: 'uint256', v: contestNonce }, 
       );
       
-      const newPlatformCut = toBN(0);
+      contestArgs.platformCut = 0;
 
       await expectRevert(
         this.contract.editContest(
-          someone, 
           contestHash,
-          contestArgs.selectedGames,
-          contestArgs.entryFee,
-          contestArgs.maxParticipants,
-          contestArgs.contestIdType,
-          newPlatformCut, // contestArgs.platformCut,
-          contestArgs.creatorCut,
-          contestArgs.isGuaranteed,
+          contestArgs,
           {
             from: allowedOpManager 
           }

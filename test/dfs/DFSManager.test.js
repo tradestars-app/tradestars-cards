@@ -167,9 +167,9 @@ describe('DFSManager', function (accounts) {
       const typedData = getOrderTypedData(
         orderId,
         orderExpiration,
-        this.reserveToken.address,   // The token contract address
+        this.reserveToken.address,      // The token contract address
         createContestArgs.creationFee,  // tokens amount
-        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dsfManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
