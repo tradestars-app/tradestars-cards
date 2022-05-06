@@ -65,6 +65,18 @@ const createEntryHash = (args) => {
   );
 }
 
+const editEntryHash = (args) => {
+  return soliditySha3(
+    { t: 'address', v: args['creator'] },
+    { t: 'uint256', v: args['entryHash'] },
+    { t: 'bytes', v: args['draftedPlayers'] },
+    // add chainID and Contract to order hash
+    { t: 'uint256', v: args['chainId'] },
+    { t: 'address', v: args['verifyingContract'] },
+  );
+}
+
+
 const claimRewardHash = (args) => {
   return soliditySha3(
     { t: 'address', v: args['sender'] },
@@ -83,7 +95,7 @@ describe('DFSManager', function (accounts) {
 
   before(async function() {
 
-    [ owner, admin, someone, anotherone, feeCollector, depositorRole, newDFSManager ] = await web3.eth.getAccounts();
+    [ owner, admin, someone, anotherone, feeCollector, depositorRole ] = await web3.eth.getAccounts();
 
     /// fill primary keys used for signatures
     pks[admin] = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
@@ -290,7 +302,7 @@ describe('DFSManager', function (accounts) {
 
     it("should fail create entry if check sign fails", async function (){
       const entryFee=toWei('10', 'ether')
-      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+      const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
       const contestNonce = 0;
       const createdContestHash = soliditySha3(
@@ -354,7 +366,7 @@ describe('DFSManager', function (accounts) {
     it("should create entry for created contest", async function () {
 
       const entryFee=toWei('10', 'ether')
-      const draftedPlayers="0x91DDCC41B761ACA928C62F7B0DA61DC763255E8247E0BD8DCE6B22205197154D"
+      const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
       const contestNonce = 0;
       const createdContestHash = soliditySha3(
@@ -363,7 +375,7 @@ describe('DFSManager', function (accounts) {
       );      
   
       const createEntryArgs = {
-          'creator': someone,
+          'creator': anotherone,
           'contestHash': createdContestHash,
           'entryFee': entryFee,
           'draftedPlayers': draftedPlayers,
@@ -390,18 +402,26 @@ describe('DFSManager', function (accounts) {
         this.reserveToken.address, /// The token contract address
         entryFee,  // tokens amount
         this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
-        someone // from address included in the EIP712signature
+        anotherone // from address included in the EIP712signature
       );
 
       // PK for msgSender
       const eip712TransferSignature = ethSign.signTypedData(
-          toBuffer(pks[someone]), { data: typedData }
+          toBuffer(pks[anotherone]), { data: typedData }
           );  
   
 
       const creatorBalanceTracker = await balanceSnap(
         this.reserveToken, someone, 'someones\s reserve balance'
       );
+
+      const feeCollectorBalanceTracker = await balanceSnap(
+        this.reserveToken, feeCollector, 'collector\s reserve balance'
+      );      
+      
+      const playerBalanceTracker = await balanceSnap(
+        this.reserveToken, anotherone, 'someones\s reserve balance'
+      );            
 
       const dfsManagerBalanceTracker = await balanceSnap(
         this.reserveToken, this.dsfManager.address, 'someones\s reserve balance'
@@ -417,29 +437,125 @@ describe('DFSManager', function (accounts) {
         orderId,
         eip712TransferSignature,
         { 
-          from: someone 
+          from: anotherone 
         }
       )
 
-      // Check balance after sending fees
+      // Check balance after sending fees WIP
 
       // check balance of sender
-      await creatorBalanceTracker.requireDecrease(
-        toBN(createEntryArgs.entryFee) // amount decrease in reserve
+      await playerBalanceTracker.requireDecrease(
+        toBN(createEntryArgs.entryFee) 
       );     
 
       /// check balance of dfsManager
-      await dfsManagerBalanceTracker.requireIncrease(
-        toBN(createEntryArgs.entryFee) // amount increase in reserve
-      );      
+      // await dfsManagerBalanceTracker.requireIncrease(
+      //  toBN(createEntryArgs.entryFee)
+      // );      
+
+      /// check balance of feeCollector
+      //await dfsManagerBalanceTracker.requireIncrease(
+      //  toBN(createEntryArgs.entryFee) // amount increase in reserve
+      //);      
+
+      /// check balance of entry Player
+      //await dfsManagerBalanceTracker.requireIncrease(
+      //  toBN(createEntryArgs.entryFee) // amount increase in reserve
+      //);      
+
+
 
     })    
 
+    it("should fail edit entry if check sign fails", async function () {
+
+      const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: anotherone },
+        { t: 'uint256', v: contestNonce }, 
+      );      
+
+      const entryNonce = 0;
+      const createdEntryHash = soliditySha3(
+        { t: 'address', v: anotherone },
+        { t: 'uint256', v: createdContestHash }, 
+        { t: 'uint256', v: entryNonce }, 
+      );      
+  
+      const editEntryArgs = {
+          'creator': anotherone,
+          'entryHash': createdEntryHash,
+          'draftedPlayers': draftedPlayers,
+      };
+
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const entryHash = editEntryHash(
+        { ...editEntryArgs, ...signatureParams }
+      );      
+  
+      // Invalid signature
+      const orderInvalidSignature = await createSignature(entryHash, someone);   
+      
+      await expectRevert(this.dsfManager.editContestEntry(
+        createdEntryHash, 
+        draftedPlayers, 
+        orderInvalidSignature, 
+        { 
+          from: anotherone 
+        }
+      ), "editContestEntry() - invalid admin signature");
+
+    })    
+
+
     it("should edit entry for created contest", async function () {
 
-    })
+      const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
-    it("should fail edit entry if check sign fails", async function () {
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: anotherone },
+        { t: 'uint256', v: contestNonce }, 
+      );      
+
+      const entryNonce = 0;
+      const createdEntryHash = soliditySha3(
+        { t: 'address', v: anotherone },
+        { t: 'uint256', v: createdContestHash }, 
+        { t: 'uint256', v: entryNonce }, 
+      );      
+  
+      const editEntryArgs = {
+          'creator': anotherone,
+          'entryHash': createdEntryHash,
+          'draftedPlayers': draftedPlayers,
+      };
+
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const entryHash = editEntryHash(
+        { ...editEntryArgs, ...signatureParams }
+      );      
+  
+      const orderAdminSignature = await createSignature(entryHash, admin);   
+      
+      const tx = await this.dsfManager.editContestEntry(
+        createdEntryHash, 
+        draftedPlayers, 
+        orderAdminSignature, 
+        { 
+          from: anotherone 
+        }
+      )
 
     })    
 
@@ -448,11 +564,21 @@ describe('DFSManager', function (accounts) {
   describe("Tests contest migrateReserve", function () {
     it("migrateReserve should transfer balance to new DFSManager", async function () {
   
+      // create new DFSManager to migrate reserve
+      this.newDfsManager = await DFSManager.new(
+        this.reserveToken.address,
+        this.entryStorage.address,
+        this.contestStorage.address, 
+        { 
+          from: owner 
+        }
+      );
+
       balanceToMigrate = await this.reserveToken.balanceOf(this.dsfManager.address)
   
-      await this.dsfManager.migrateReserve(newDFSManager);
+      await this.dsfManager.migrateReserve(this.newDfsManager.address);
   
-      newDFSManagerBalance = await this.reserveToken.balanceOf(newDFSManager)
+      newDFSManagerBalance = await this.reserveToken.balanceOf(this.newDfsManager.address)
       oldDFSManagerBalance = await this.reserveToken.balanceOf(this.dsfManager.address)
   
       // Check expected behaviour after migration
