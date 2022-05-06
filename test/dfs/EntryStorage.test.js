@@ -197,6 +197,7 @@ describe('EntryStorage', function () {
         { t: 'uint256', v: entryArgs.contestHash }, 
         { t: 'uint256', v: 0 }, // created entry nonce
       );
+      
       const tx = await this.contract.claimEntry(
         someone, 
         entryHash,
