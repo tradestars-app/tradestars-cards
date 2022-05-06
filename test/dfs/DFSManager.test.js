@@ -38,14 +38,15 @@ const createSignature = async (msgHash, signer) => {
 
 const createContestHash = (args) => {
   return soliditySha3(
-    { t: 'address', v: args['sender'] },
+    { t: 'address', v: args['creator'] },
     { t: 'uint256', v: args['creationFee'] },
     { t: 'uint256', v: args['entryFee'] },
-    { t: 'bytes', v: args['selectedGames'] },
-    { t: 'uint32', v: args['maxParticipants'] },      
     { t: 'uint8', v: args['contestIdType'] },      
     { t: 'uint8', v: args['platformCut'] },      
     { t: 'uint8', v: args['creatorCut'] },      
+    { t: 'uint32', v: args['maxParticipants'] },      
+    { t: 'bool', v: args['isGuaranteed'] },
+    { t: 'bytes', v: args['selectedGames'] },
     // add chainID and Contract to order hash
     { t: 'uint256', v: args['chainId'] },
     { t: 'address', v: args['verifyingContract'] },
@@ -134,18 +135,21 @@ describe('DFSManager', function (accounts) {
   describe("Tests contests create", function () {
     
     it("Creates a contest", async function () {
+
       const createContestArgs = {
-        'creationFee': toWei('20', 'ether'),
-        'entryFee': toWei('1', 'ether'),
-        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002"),
-        'maxParticipants': 50,
+        'creator': someone,
+        'creationFee': toWei('100', 'ether'),
+        'entryFee': toWei('10', 'ether'),
         'contestIdType': 0,
         'platformCut': 10,
         'creatorCut': 10,
+        'maxParticipants': 50,
+        'participantsCount': 0,
+        'isGuaranteed': true,
+        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")
       };
       
       const signatureParams = {
-        'sender': someone,
         'chainId' : await web3.eth.net.getId(),
         'verifyingContract' : this.dsfManager.address
       }
@@ -189,14 +193,8 @@ describe('DFSManager', function (accounts) {
       );
 
       await this.dsfManager.createContest(
-        createContestArgs.creationFee,
-        createContestArgs.entryFee,
-        createContestArgs.selectedGames,
-        createContestArgs.maxParticipants,
-        createContestArgs.contestIdType,
-        createContestArgs.platformCut,
-        createContestArgs.creatorCut,
-        // 
+        createContestArgs,
+        // admin signature
         orderAdminSignature, 
         // EIP712.
         orderExpiration,

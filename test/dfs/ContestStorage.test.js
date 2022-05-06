@@ -47,24 +47,24 @@ describe('ContestStorage', function () {
   describe('ABM Contest', function() {
     
     const contestArgs = {
-      'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002"),
+      'creator': undefined,
+      'creationFee': toWei('100', 'ether'),
       'entryFee': toWei('10', 'ether'),
-      'maxParticipants': toBN(50),
-      'contestIdType': toBN(0),
-      'platformCut': toBN(10),
-      'creatorCut': toBN(10),
+      'contestIdType': 0,
+      'platformCut': 10,
+      'creatorCut': 10,
+      'maxParticipants': 50,
+      'participantsCount': 0,
+      'isGuaranteed': true,
+      'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")
     };
 
     it(`Fails create from non op manager`, async function() {
+      contestArgs.creator = someone;
+
       await expectRevert(
         this.contract.createContest(
-          someone, 
-          contestArgs.selectedGames,
-          contestArgs.entryFee,
-          contestArgs.maxParticipants,
-          contestArgs.contestIdType,
-          contestArgs.platformCut,
-          contestArgs.creatorCut,
+          contestArgs,
           {
             from: anotherone 
           }
@@ -74,27 +74,29 @@ describe('ContestStorage', function () {
     });
 
     it(`Creates contest OK`, async function() {
-  
+      contestArgs.creator = someone;
+
       const tx = await this.contract.createContest(
-        someone, 
-        contestArgs.selectedGames,
-        contestArgs.entryFee,
-        contestArgs.maxParticipants,
-        contestArgs.contestIdType,
-        contestArgs.platformCut,
-        contestArgs.creatorCut,
+        contestArgs,
         {
           from: allowedOpManager 
         }
       );
 
+      // TODO: Check detailed the formatting.
       expectEvent(tx, 'CreateContest', { 
-        'creator': someone,
-        'entryFee': contestArgs.entryFee,
-        'maxParticipants': contestArgs.maxParticipants,
-        'contestIdType': contestArgs.contestIdType,
-        'platformCut': contestArgs.platformCut,
-        'creatorCut': contestArgs.creatorCut
+        'contestArgs': [ 
+          contestArgs.creator,
+          contestArgs.creationFee,
+          contestArgs.entryFee,
+          `${contestArgs.contestIdType}`,
+          `${contestArgs.platformCut}`,
+          `${contestArgs.creatorCut}`,
+          `${contestArgs.maxParticipants}`,
+          `${contestArgs.participantsCount}`,
+          contestArgs.isGuaranteed,
+          contestArgs.selectedGames,
+        ],
       });
     });
 
@@ -113,6 +115,7 @@ describe('ContestStorage', function () {
       expect(obj.contestIdType).to.eq.BN(contestArgs.contestIdType);
       expect(obj.platformCut).to.eq.BN(contestArgs.platformCut);
       expect(obj.creatorCut).to.eq.BN(contestArgs.creatorCut);
+      expect(obj.isGuaranteed).to.eq.BN(contestArgs.isGuaranteed);
     });
 
     it(`Fails edit from non op manager`, async function() {
@@ -134,6 +137,7 @@ describe('ContestStorage', function () {
           contestArgs.contestIdType,
           newPlatformCut, // contestArgs.platformCut,
           contestArgs.creatorCut,
+          contestArgs.isGuaranteed,
           {
             from: anotherone 
           }
@@ -161,6 +165,7 @@ describe('ContestStorage', function () {
           contestArgs.contestIdType,
           newPlatformCut, // contestArgs.platformCut,
           contestArgs.creatorCut,
+          contestArgs.isGuaranteed,
           {
             from: allowedOpManager 
           }
@@ -187,6 +192,7 @@ describe('ContestStorage', function () {
         contestArgs.contestIdType,
         newPlatformCut, // contestArgs.platformCut,
         contestArgs.creatorCut,
+        contestArgs.isGuaranteed,
         {
           from: allowedOpManager 
         }
@@ -199,7 +205,8 @@ describe('ContestStorage', function () {
         'maxParticipants': contestArgs.maxParticipants,
         'contestIdType': contestArgs.contestIdType,
         'platformCut': newPlatformCut, //contestArgs.platformCut,
-        'creatorCut': contestArgs.creatorCut
+        'creatorCut': contestArgs.creatorCut,
+        'isGuaranteed': contestArgs.isGuaranteed,
       });
     });
 
@@ -238,6 +245,7 @@ describe('ContestStorage', function () {
           contestArgs.contestIdType,
           newPlatformCut, // contestArgs.platformCut,
           contestArgs.creatorCut,
+          contestArgs.isGuaranteed,
           {
             from: allowedOpManager 
           }

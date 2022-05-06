@@ -54,44 +54,37 @@ contract ContestStorage is OperationManaged, IContestStorage {
 
     /**
      * @dev Creates a new contest entry.  
-     * @param _sender of the order
-     * @param _selectedGames array of concatenated gameIds for the contest
+     * @param _contestArgs contest info order 
      */
     function createContest(
-        address _sender, 
-        bytes memory _selectedGames,
-        uint256 _entryFee, 
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut
+        ContestInfo memory _contestArgs
     ) 
         external override onlyOperationManager
     {
         bytes32 contestHash = keccak256(
             abi.encodePacked(
-                _sender, 
+                _contestArgs.creator, 
                 contestNonce
             )
         );
 
-        // We need to associate entries with sender for edit / claim
-        ContestInfo storage ci = contestsInfoHash[contestHash];
-
+        // check is not created already
         require(
-            ci.creator == address(0),
+            contestsInfoHash[contestHash].creator == address(0),
             "createEntry() - Entry is already created"
         );
         
         /// save contest params create contest
         contestsInfoHash[contestHash] = ContestInfo({
-            creator: _sender,
-            entryFee: _entryFee,
-            selectedGames: _selectedGames,
-            contestIdType: _contestIdType,
-            platformCut: _platformCut,
-            creatorCut: _creatorCut,
-            maxParticipants: _maxParticipants,
+            creator: _contestArgs.creator,
+            entryFee: _contestArgs.entryFee,
+            creationFee: _contestArgs.creationFee,
+            selectedGames: _contestArgs.selectedGames,
+            contestIdType: _contestArgs.contestIdType,
+            platformCut: _contestArgs.platformCut,
+            creatorCut: _contestArgs.creatorCut,
+            maxParticipants: _contestArgs.maxParticipants,
+            isGuaranteed: _contestArgs.isGuaranteed,
             participantsCount: 0
         });
 
@@ -100,43 +93,25 @@ contract ContestStorage is OperationManaged, IContestStorage {
         
         emit CreateContest(
             contestHash, 
-            _sender, 
-            _entryFee,
-            _maxParticipants,
-            _contestIdType,
-            _platformCut,
-            _creatorCut,
-            _selectedGames
+            contestsInfoHash[contestHash]
         );
     }
 
     /**
      * @dev Edits an already created entry.
-     * @param _sender of the order
      * @param _contestHash for the entry
-     * @param _selectedGames array of concatenated playerIds of the draft
-     * @param _entryFee for the entry
-     * @param _maxParticipants allowed on the contest 
-     * @param _contestIdType for the entry
-     * @param _platformCut for the entry
-     * @param _creatorCut for the entry
+     * @param _contestArgs contest info order 
      */
     function editContest(
-        address _sender, 
         bytes32 _contestHash,
-        bytes memory _selectedGames,
-        uint256 _entryFee,
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut
+        ContestInfo memory _contestArgs
     ) 
         external override onlyOperationManager
     {
         ContestInfo storage ci = contestsInfoHash[_contestHash];
      
         require(
-            ci.creator == _sender,
+            ci.creator == _contestArgs.creator,
             "EditContest() - invalid owner"
         );
 
@@ -146,22 +121,14 @@ contract ContestStorage is OperationManaged, IContestStorage {
         );
 
         // change contest params
-        ci.entryFee = _entryFee;
-        ci.creatorCut = _creatorCut;
-        ci.platformCut = _platformCut;
-        ci.contestIdType = _contestIdType;
-        ci.selectedGames = _selectedGames;
-        ci.maxParticipants = _maxParticipants;
+        ci.entryFee = _contestArgs.entryFee;
+        ci.creatorCut = _contestArgs.creatorCut;
+        ci.platformCut = _contestArgs.platformCut;
+        ci.isGuaranteed = _contestArgs.isGuaranteed;
+        ci.contestIdType = _contestArgs.contestIdType;
+        ci.selectedGames = _contestArgs.selectedGames;
+        ci.maxParticipants = _contestArgs.maxParticipants;
 
-        emit EditContest( 
-            _contestHash,
-            _sender, 
-            _entryFee,
-            _maxParticipants,
-            _contestIdType,
-            _platformCut,
-            _creatorCut,
-            _selectedGames
-        );
+        emit EditContest(_contestHash, _contestArgs);
     }
 }

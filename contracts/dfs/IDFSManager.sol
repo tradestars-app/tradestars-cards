@@ -2,33 +2,24 @@
     
 pragma solidity ^0.8.0;
 
+import "./IContestStorage.sol";
+
 
 interface IDFSManager {
 
     function createContest(
-        uint256 _creationFee,
-        uint256 _entryFee,
-        bytes memory _selectedGames,
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut,
+        IContestStorage.ContestInfo memory _contestArgs,
         bytes memory _orderAdminSignature,
         // These are required for EIP712
-        uint256 _expiration,
-        bytes32 _orderId,
+        uint256 _eip721OrderExpiration,
+        bytes32 _eip721OrderId,
         bytes memory _eip712TransferSignature
     ) 
         external;
 
     function editContest(
         bytes32 _contestHash,
-        bytes memory _selectedGames,
-        uint256 _entryFee,
-        uint32 _maxParticipants,
-        uint8 _contestIdType,
-        uint8 _platformCut,
-        uint8 _creatorCut,
+        IContestStorage.ContestInfo memory _contestArgs,
         bytes memory _orderAdminSignature
     ) 
         external;
