@@ -17,6 +17,7 @@ const { getOrderTypedData } = require('../helpers/eip712utils');
 
 const { toBuffer } = require('ethereumjs-util');
 const { randomBytes } = require('crypto');
+const { runInThisContext } = require('vm');
 
 const TSXChild = artifacts.require('TSXChild');
 const DFSManager = artifacts.require('DFSManager');
@@ -143,6 +144,13 @@ describe('DFSManager', function (accounts) {
     await this.dsfManager.setAdminAddress(admin, { from: owner });
     await this.dsfManager.setFeeCollector(feeCollector, { from: owner });
     
+    // Contest & entry params
+    this.creationFee = toWei('100', 'ether')
+    this.entryFee = toWei('10', 'ether')
+    this.transferFee = toWei('2', 'ether')
+    this.platformCut = 10
+    this.creatorCut = 10
+    this.mathPrecision = 10000 
   });
 
   describe("Tests contests create", function () {
@@ -151,11 +159,11 @@ describe('DFSManager', function (accounts) {
 
       const createContestArgs = {
         'creator': someone,
-        'creationFee': toWei('100', 'ether'),
-        'entryFee': toWei('10', 'ether'),
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
         'contestIdType': 0,
-        'platformCut': 10,
-        'creatorCut': 10,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
         'maxParticipants': 50,
         'participantsCount': 0,
         'isGuaranteed': true,
@@ -220,11 +228,11 @@ describe('DFSManager', function (accounts) {
 
       /// check balance of sender
       await creatorBalanceTracker.requireDecrease(
-        toBN(createContestArgs.creationFee) // amount decrease in reserve
+        toBN(this.creationFee) // amount decrease in reserve
       );
 
       await feeCollectorTracker.requireIncrease(
-        toBN(createContestArgs.creationFee) // amount increase in reserve
+        toBN(this.creationFee) // amount increase in reserve
       );
     })
 
@@ -232,11 +240,11 @@ describe('DFSManager', function (accounts) {
 
       const createContestArgs = {
         'creator': someone,
-        'creationFee': toWei('100', 'ether'),
-        'entryFee': toWei('10', 'ether'),
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
         'contestIdType': 0,
-        'platformCut': 10,
-        'creatorCut': 10,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
         'maxParticipants': 50,
         'participantsCount': 0,
         'isGuaranteed': true,
@@ -274,10 +282,10 @@ describe('DFSManager', function (accounts) {
 
       invalidContestArgs = {
         'creator': someone,
-        'creationFee': toWei('100', 'ether'),
-        'entryFee': toWei('10', 'ether'),
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
         'contestIdType': 0,
-        'platformCut': 10,
+        'platformCut': this.platformCut,
         'creatorCut': 20, // Diferent creator cut. Check sig will fail
         'maxParticipants': 50,
         'participantsCount': 0,
@@ -365,7 +373,6 @@ describe('DFSManager', function (accounts) {
 
     it("should create entry for created contest", async function () {
 
-      const entryFee=toWei('10', 'ether')
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
       const contestNonce = 0;
@@ -377,7 +384,7 @@ describe('DFSManager', function (accounts) {
       const createEntryArgs = {
           'creator': anotherone,
           'contestHash': createdContestHash,
-          'entryFee': entryFee,
+          'entryFee': this.entryFee,
           'draftedPlayers': draftedPlayers,
       };
 
@@ -400,7 +407,7 @@ describe('DFSManager', function (accounts) {
         orderId,
         orderExpiration,
         this.reserveToken.address, /// The token contract address
-        entryFee,  // tokens amount
+        this.entryFee,  // tokens amount
         this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         anotherone // from address included in the EIP712signature
       );
@@ -429,7 +436,7 @@ describe('DFSManager', function (accounts) {
 
       const tx = await this.dsfManager.createContestEntry(
         createdContestHash, 
-        entryFee, 
+        this.entryFee, 
         draftedPlayers, 
         orderAdminSignature, 
         // EIP712.
@@ -441,29 +448,42 @@ describe('DFSManager', function (accounts) {
         }
       )
 
-      // Check balance after sending fees WIP
+      // PRECISION
+      // 10000
+      // entry fee
+      // 10000000000000000000 10^18
+      // ci creator cut
+      // 10
+      // ci platform cut
+      // 10
+      // final creator Cut
+      // 10000000000000000 10^15
+      // final platform Cut
+      // 10000000000000000 10^15
+
+      const expectedFeeCollectorIncrease = toBN(this.entryFee) * this.platformCut / this.mathPrecision
+      const expectedCreatorIncrease = toBN(this.entryFee) * this.creatorCut / this.mathPrecision
+      const expectedDfsManagerIncrease = this.entryFee - toWei('0.02', 'ether')
 
       // check balance of sender
       await playerBalanceTracker.requireDecrease(
-        toBN(createEntryArgs.entryFee) 
+        toBN(this.entryFee) 
+      );  
+
+      /// check balance of feeCollector
+      await feeCollectorBalanceTracker.requireIncrease(
+        toBN(expectedFeeCollectorIncrease) 
+      );  
+
+      /// check balance of creator
+      await creatorBalanceTracker.requireIncrease(
+        toBN(expectedCreatorIncrease) 
       );     
 
       /// check balance of dfsManager
-      // await dfsManagerBalanceTracker.requireIncrease(
-      //  toBN(createEntryArgs.entryFee)
-      // );      
-
-      /// check balance of feeCollector
-      //await dfsManagerBalanceTracker.requireIncrease(
-      //  toBN(createEntryArgs.entryFee) // amount increase in reserve
-      //);      
-
-      /// check balance of entry Player
-      //await dfsManagerBalanceTracker.requireIncrease(
-      //  toBN(createEntryArgs.entryFee) // amount increase in reserve
-      //);      
-
-
+      await dfsManagerBalanceTracker.requireIncrease(
+        toBN(expectedDfsManagerIncrease) 
+      );      
 
     })    
 
@@ -598,14 +618,14 @@ describe('DFSManager', function (accounts) {
           'claimedAmount': claimedAmount,
           'entryHashArr': this.createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.dfsManager.address
+          'verifyingContract' : this.dsfManager.address          
       };
   
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderSomeoneSignature = await createSignature(rewardHash, someone);   
       
       await expectRevert(
-        this.dfsManager.claimContesEntry(
+        this.dsfManager.claimContesEntry(
           claimedAmount, 
           [this.createdEntryHash], 
           orderSomeoneSignature,
