@@ -533,16 +533,15 @@ describe('DFSManager', function (accounts) {
 
     })    
 
-
     it("should edit entry for created contest", async function () {
 
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
       const contestNonce = 0;
       const createdContestHash = soliditySha3(
-        { t: 'address', v: anotherone },
+        { t: 'address', v: someone },
         { t: 'uint256', v: contestNonce }, 
-      );      
+      );   
 
       const entryNonce = 0;
       const createdEntryHash = soliditySha3(
@@ -579,15 +578,27 @@ describe('DFSManager', function (accounts) {
 
     })    
 
-
     it("claimContesEntry should send rewards and emit event", async function () {
 
-      const claimedAmount=toBN(10000)
+      const claimedAmount=toWei('0.1', 'ether')
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );   
+
+      const entryNonce = 0;
+      const createdEntryHash = soliditySha3(
+        { t: 'address', v: anotherone },
+        { t: 'uint256', v: createdContestHash }, 
+        { t: 'uint256', v: entryNonce }, 
+      );         
   
       const claimRewardArgs = {
           'sender': anotherone,  
           'claimedAmount': claimedAmount,
-          'entryHashArr': this.createdEntryHash,
+          'entryHashArr': createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
           'verifyingContract' : this.dsfManager.address
       };
@@ -595,20 +606,25 @@ describe('DFSManager', function (accounts) {
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderAdminSignature = await createSignature(rewardHash, admin);   
       
+      const playerBalanceTracker = await balanceSnap(
+        this.reserveToken, anotherone, 'someones\s reserve balance'
+      );  
+            
       const tx = await this.dsfManager.claimContesEntry(
         claimedAmount, 
-        [this.createdEntryHash], 
+        [createdEntryHash], 
         orderAdminSignature, 
         { 
           from: anotherone 
         }        
       )
-      
-      //Check sent rewars
-      v = await this.token.balanceOf(anotherone)
-      expect(v, "reward sent to someonne").to.be.eq.BN(claimedAmount);      
-              
+
+      // check balance of sender
+      await playerBalanceTracker.requireIncrease(
+        toBN(claimedAmount) 
+      );        
     })
+
     it("claimContesEntry should revert if check signature fails", async function () {
 
       const claimedAmount=toBN(10000)
@@ -636,7 +652,6 @@ describe('DFSManager', function (accounts) {
 
     })  
 
-    
   })
 
   describe("Tests contest migrateReserve", function () {
