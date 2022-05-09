@@ -1,7 +1,5 @@
 const { 
   BN, // big number
-  time, // time helpers
-  expectEvent, // Assertions for emitted events
   expectRevert, // Assertions for transactions that should fail
 } = require('@openzeppelin/test-helpers');
 
@@ -17,7 +15,6 @@ const { getOrderTypedData } = require('../helpers/eip712utils');
 
 const { toBuffer } = require('ethereumjs-util');
 const { randomBytes } = require('crypto');
-const { runInThisContext } = require('vm');
 
 const TSXChild = artifacts.require('TSXChild');
 const DFSManager = artifacts.require('DFSManager');
@@ -205,10 +202,6 @@ describe('DFSManager', function (accounts) {
         this.reserveToken, someone, 'someones\s reserve balance'
       );
 
-      const vaultBalanceTracker = await balanceSnap(
-        this.reserveToken, this.dsfManager.address, 'vault\s reserve balance'
-      );
-
       const feeCollectorTracker = await balanceSnap(
         this.reserveToken, feeCollector, 'fees collector reserve balance'
       );
@@ -233,10 +226,68 @@ describe('DFSManager', function (accounts) {
 
       await feeCollectorTracker.requireIncrease(
         toBN(this.creationFee) // amount increase in reserve
-      );
+      );  
     })
 
-    it("reverts if admin signature fails", async function () {
+    it("Reverts contest creation if creator invalid", async function () {
+
+      const createContestArgs = {
+        'creator': someone,
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
+        'contestIdType': 0,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
+        'maxParticipants': 50,
+        'participantsCount': 0,
+        'isGuaranteed': true,
+        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")
+      };
+      
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...createContestArgs, ...signatureParams }
+      );
+      
+      const orderAdminSignature = await createSignature(contestHash, admin);  
+
+      // EIP712
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
+      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        orderExpiration,
+        this.reserveToken.address,      // The token contract address
+        createContestArgs.creationFee,  // tokens amount
+        this.dsfManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
+        someone // from address included in the EIP712signature
+      );
+
+      // Sign EIP712 transfer order
+      const eip712TransferSignature = ethSign.signTypedData(
+        toBuffer(pks[someone]), { data: typedData }
+      );
+
+      await expectRevert(this.dsfManager.createContest(
+        createContestArgs,
+        // admin signature
+        orderAdminSignature, 
+        // EIP712.
+        orderExpiration,
+        orderId,
+        eip712TransferSignature, 
+        { 
+          from: anotherone 
+        }
+      ),"createContest() - creator invalid");
+    })
+
+    it("Reverts if admin signature fails", async function () {
 
       const createContestArgs = {
         'creator': someone,
@@ -308,7 +359,138 @@ describe('DFSManager', function (accounts) {
 
     })
 
-    it("should fail create entry if check sign fails", async function (){
+    it("Edits created contest", async function(){
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );            
+
+      const editContestArgs = {
+        'creator': someone,
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
+        'contestIdType': 0,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
+        'maxParticipants': 10, 
+        'participantsCount': 0,
+        'isGuaranteed': false,
+        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002|0003")
+      };
+      
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...editContestArgs, ...signatureParams }
+      );
+      
+      const orderAdminSignature = await createSignature(contestHash, admin);  
+
+      await this.dsfManager.editContest(
+        createdContestHash,
+        editContestArgs,
+        // admin signature
+        orderAdminSignature, 
+        { 
+          from: someone 
+        }
+      );
+    })
+
+    it("Reverts edit contest if invalid creator", async function(){
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );            
+
+      const editContestArgs = {
+        'creator': someone,
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
+        'contestIdType': 0,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
+        'maxParticipants': 10, 
+        'participantsCount': 0,
+        'isGuaranteed': false,
+        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002|0003")
+      };
+      
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...editContestArgs, ...signatureParams }
+      );
+      
+      const orderAdminSignature = await createSignature(contestHash, admin);  
+
+      await expectRevert(this.dsfManager.editContest(
+        createdContestHash,
+        editContestArgs,
+        // admin signature
+        orderAdminSignature, 
+        { 
+          from: anotherone
+        }),"createContest() - creator invalid"
+        );
+
+    })
+
+    it("Reverts edit contest if invalid signer", async function(){
+
+      const contestNonce = 0;
+      const createdContestHash = soliditySha3(
+        { t: 'address', v: someone },
+        { t: 'uint256', v: contestNonce }, 
+      );            
+
+      const editContestArgs = {
+        'creator': someone,
+        'creationFee': this.creationFee,
+        'entryFee': this.entryFee,
+        'contestIdType': 0,
+        'platformCut': this.platformCut,
+        'creatorCut': this.creatorCut,
+        'maxParticipants': 10, 
+        'participantsCount': 0,
+        'isGuaranteed': false,
+        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002|0003")
+      };
+      
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dsfManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...editContestArgs, ...signatureParams }
+      );
+      
+      const orderAnotherOneSignature = await createSignature(contestHash, anotherone);  
+
+      await expectRevert(this.dsfManager.editContest(
+        createdContestHash,
+        editContestArgs,
+        // another signature
+        orderAnotherOneSignature, 
+        { 
+          from: someone
+        }),"editContestEntry() - invalid admin signature"
+        );
+
+    })
+
+    it("Reverts create entry if check sign fails", async function (){
       const entryFee=toWei('10', 'ether')
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
@@ -371,7 +553,7 @@ describe('DFSManager', function (accounts) {
 
     })
 
-    it("should create entry for created contest", async function () {
+    it("Create entry for created contest", async function () {
 
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
@@ -448,19 +630,6 @@ describe('DFSManager', function (accounts) {
         }
       )
 
-      // PRECISION
-      // 10000
-      // entry fee
-      // 10000000000000000000 10^18
-      // ci creator cut
-      // 10
-      // ci platform cut
-      // 10
-      // final creator Cut
-      // 10000000000000000 10^15
-      // final platform Cut
-      // 10000000000000000 10^15
-
       const expectedFeeCollectorIncrease = toBN(this.entryFee) * this.platformCut / this.mathPrecision
       const expectedCreatorIncrease = toBN(this.entryFee) * this.creatorCut / this.mathPrecision
       const expectedDfsManagerIncrease = this.entryFee - toWei('0.02', 'ether')
@@ -487,7 +656,7 @@ describe('DFSManager', function (accounts) {
 
     })    
 
-    it("should fail edit entry if check sign fails", async function () {
+    it("Reverts edit entry if check sign fails", async function () {
 
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
@@ -533,7 +702,7 @@ describe('DFSManager', function (accounts) {
 
     })    
 
-    it("should edit entry for created contest", async function () {
+    it("Edits entry for created contest", async function () {
 
       const draftedPlayers=web3.eth.abi.encodeParameter('string', "0001|0002")
 
@@ -578,7 +747,7 @@ describe('DFSManager', function (accounts) {
 
     })    
 
-    it("claimContesEntry should send rewards and emit event", async function () {
+    it("Send rewards", async function () {
 
       const claimedAmount=toWei('0.1', 'ether')
 
@@ -609,7 +778,7 @@ describe('DFSManager', function (accounts) {
       const playerBalanceTracker = await balanceSnap(
         this.reserveToken, anotherone, 'someones\s reserve balance'
       );  
-            
+
       const tx = await this.dsfManager.claimContesEntry(
         claimedAmount, 
         [createdEntryHash], 
@@ -625,7 +794,7 @@ describe('DFSManager', function (accounts) {
       );        
     })
 
-    it("claimContesEntry should revert if check signature fails", async function () {
+    it("Revert send rewards if check signature fails", async function () {
 
       const claimedAmount=toBN(10000)
   
