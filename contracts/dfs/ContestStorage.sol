@@ -33,7 +33,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
     function getContestData(
         bytes32 _contestHash
     ) 
-        external override returns (address creator, uint256 entryFee) 
+        external view override returns (address creator, uint256 entryFee) 
     {
         ContestInfoStorage storage cie = _getContestInfoStorageByHash(_contestHash); 
 
@@ -77,7 +77,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
         );
 
         require(
-            _contestArgs.startTime <= block.timestamp,
+            _contestArgs.startTime > block.timestamp,
             "createContest() - invalid startTime"
         );
 
@@ -130,7 +130,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
      
         require(
             cie.creator == _creator,
-            "EditContest() - invalid creator"
+            "EditContest() - invalid owner"
         );
         
         require(
@@ -139,8 +139,13 @@ contract ContestStorage is OperationManaged, IContestStorage {
         );        
 
         require(
-            ci.startTime <= block.timestamp,
+            ci.startTime > block.timestamp,
             "EditContest() - contest started"
+        );
+
+        require(
+            _contestArgs.startTime > block.timestamp,
+            "EditContest() - invalid startTime"
         );
 
 
@@ -174,7 +179,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
         ContestInfo storage ci = cie.contestInfo;
         
         require(
-            ci.startTime <= block.timestamp,
+            ci.startTime > block.timestamp,
             "addEntry() - contest started"
         );
         
@@ -221,7 +226,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
         ContestInfo storage ci = cie.contestInfo;
         
         require(
-            ci.startTime <= block.timestamp,
+            ci.startTime > block.timestamp,
             "editEntry() - contest started"
         );
 
