@@ -25,27 +25,28 @@ interface IDFSManager {
         external;
 
     function createContestEntry(
+        uint256 _maxPayableFee,
         bytes32 _contestHash,
-        uint256 _entryFee,
         bytes memory _draftedPlayers,
         bytes memory _orderAdminSignature,
         // These are required for EIP712
-        uint256 _expiration,
-        bytes32 _orderId,
+        uint256 _eip721OrderExpiration,
+        bytes32 _eip721OrderId,
         bytes memory _eip712TransferSignature
     )
         external;
 
     function editContestEntry(
         bytes32 _entryHash,
+        bytes32 _contestHash,
         bytes memory _draftedPlayers,
         bytes memory _orderAdminSignature
     )
         external;
 
-    function claimContesEntry(
-        uint256 _claimedAmount,
+    function claimContestEntry(
         bytes32[] memory _entryHashArr,
+        uint256[] memory _entryAmountArr,
         bytes memory _orderAdminSignature
     )
         external;

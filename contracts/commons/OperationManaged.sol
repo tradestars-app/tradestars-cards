@@ -9,22 +9,30 @@ contract OperationManaged is Ownable {
 
     constructor() Ownable() {}
 
-    // Manager allowed address
-    address private operationManager;
+    // Manager allowed addresses
+    mapping(address => bool) private operationManagerHash;
 
     /**
-     * @dev Throws if called by any account other than the manager.
+     * @dev Throws if called by any account other than an op manager.
      */
     modifier onlyOperationManager() {
-        require(msg.sender == operationManager, "caller is not allowed");
+        require(operationManagerHash[msg.sender], "caller is not allowed");
         _;
     }
 
     /**
-     * @dev Sets the operation manager of the contract.
+     * @dev Sets an operation manager of the contract.
      * @param _manager address
      */
     function setOperationManager(address _manager) external onlyOwner {
-        operationManager = _manager;
+        operationManagerHash[_manager] = true;
+    }
+
+    /**
+     * @dev Removes operation manager of the contract.
+     * @param _manager address
+     */
+    function removeOperationManager(address _manager) external onlyOwner {
+        operationManagerHash[_manager] = false;
     }
 }

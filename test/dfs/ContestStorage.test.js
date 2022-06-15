@@ -106,7 +106,7 @@ describe('ContestStorage', function () {
         { t: 'address', v: someone },
         { t: 'uint256', v: contestNonce }, 
       );
-      const obj = await this.contract.getContestByHash(contestHash);
+      const obj = await this.contract.getContest(contestHash);
       
       // check event values OK
       expect(obj.creator).to.equal(someone);
@@ -209,7 +209,7 @@ describe('ContestStorage', function () {
       );
 
       // check values OK
-      const obj = await this.contract.getContestByHash(contestHash);
+      const obj = await this.contract.getContest(contestHash);
       expect(obj.participantsCount).to.eq.BN(1);
     });
 

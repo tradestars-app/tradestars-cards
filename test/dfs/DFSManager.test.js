@@ -21,7 +21,6 @@ const { randomBytes } = require('crypto');
 const TSXChild = artifacts.require('TSXChild');
 const DFSManager = artifacts.require('DFSManager');
 const ContestStorage = artifacts.require('ContestStorage')
-const EntryStorage = artifacts.require('EntryStorage')
 
 const createSignature = async (msgHash, signer) => {
   const signature = await web3.eth.sign(msgHash, signer);
@@ -111,12 +110,10 @@ describe('DFSManager', function (accounts) {
 
     // create ContestStorage & entry Storage contracts
     this.contestStorage = await ContestStorage.new({ from: owner });
-    this.entryStorage = await EntryStorage.new({ from: owner });
 
     // create DFSManager
     this.dsfManager = await DFSManager.new(
       this.reserveToken.address,
-      this.entryStorage.address,
       this.contestStorage.address, 
       { 
         from: owner 
@@ -125,7 +122,6 @@ describe('DFSManager', function (accounts) {
 
     // sets storages' operation manager
     await this.contestStorage.setOperationManager(this.dsfManager.address, { from: owner });
-    await this.entryStorage.setOperationManager(this.dsfManager.address, { from: owner });
 
     // sets DFSManager's admin and Fee collector addr.
     await this.dsfManager.setAdminAddress(admin, { from: owner });
@@ -137,28 +133,48 @@ describe('DFSManager', function (accounts) {
     
     it("Creates a contest", async function () {
 
+      // const createContestArgs = {
+      //   'creator': someone,
+      //   'creationFee': toWei('100', 'ether'),
+      //   'entryFee': toWei('10', 'ether'),
+      //   'contestIdType': 0,
+      //   'platformCut': 10,
+      //   'creatorCut': 10,
+      //   'maxParticipants': 50,
+      //   'participantsCount': 0,
+      //   'isGuaranteed': true,
+      //   'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")
+      // };
+      
+      // const signatureParams = {
+      //   'chainId': await web3.eth.net.getId(),
+      //   'verifyingContract' : this.dsfManager.address
+      // }
+
+      // const contestHash = createContestHash(
+      //   { ...createContestArgs, ...signatureParams }
+      // );
+      
       const createContestArgs = {
-        'creator': someone,
-        'creationFee': toWei('100', 'ether'),
-        'entryFee': toWei('10', 'ether'),
-        'contestIdType': 0,
+        'creator': "0x15275bB074f864a66D86440D452Ea58d6627F8f2",
+        'creationFee': "100000000000000000000",
+        'entryFee': "100000000000000000000",
+        'contestIdType': 2,
         'platformCut': 10,
-        'creatorCut': 10,
-        'maxParticipants': 50,
+        'creatorCut': 5,
+        'maxParticipants': 10,
         'participantsCount': 0,
         'isGuaranteed': true,
-        'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")
+        'selectedGames': web3.eth.abi.encodeParameter('string', "36821"),
+        'chainId': 80001,
+        'verifyingContract': "0xd7b809afCE0C1AD9b3Cb80267D8014241c684A88"
       };
-      
-      const signatureParams = {
-        'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
-      }
-      
-      const contestHash = createContestHash(
-        { ...createContestArgs, ...signatureParams }
-      );
-      
+
+      const h = createContestHash(createContestArgs);
+
+      console.log(createContestArgs);
+      console.log(h);
+
       const orderAdminSignature = await createSignature(contestHash, admin);  
 
       // EIP712
