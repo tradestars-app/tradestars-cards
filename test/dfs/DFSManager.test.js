@@ -1,5 +1,7 @@
 const { 
   BN, // big number
+  time,
+  expectEvent, // Assertions for emitted events
   expectRevert, // Assertions for transactions that should fail
 } = require('@openzeppelin/test-helpers');
 
@@ -35,15 +37,14 @@ const createSignature = async (msgHash, signer) => {
 
 const createContestHash = (args) => {
   return soliditySha3(
-    { t: 'address', v: args['creator'] },
-    { t: 'uint256', v: args['creationFee'] },
     { t: 'uint256', v: args['entryFee'] },
-    { t: 'uint8', v: args['contestIdType'] },      
-    { t: 'uint8', v: args['platformCut'] },      
-    { t: 'uint8', v: args['creatorCut'] },      
-    { t: 'uint32', v: args['maxParticipants'] },      
+    { t: 'uint256', v: args['startTime'] },
+    { t: 'uint256', v: args['endTime'] },
     { t: 'bool', v: args['isGuaranteed'] },
     { t: 'bytes', v: args['selectedGames'] },
+    { t: 'uint8', v: args['contestIdType'] },      
+    { t: 'uint32', v: args['maxParticipants'] },
+    { t: 'uint8', v: args['maxDraftsPerParticipant'] },      
     // add chainID and Contract to order hash
     { t: 'uint256', v: args['chainId'] },
     { t: 'address', v: args['verifyingContract'] },
@@ -92,7 +93,14 @@ describe('DFSManager', function (accounts) {
 
   before(async function() {
 
-    [ owner, admin, someone, anotherone, feeCollector, depositorRole ] = await web3.eth.getAccounts();
+    [ 
+      owner, 
+      admin, 
+      someone, 
+      anotherone, 
+      feeCollector, 
+      depositorRole
+    ] = await web3.eth.getAccounts();
 
     /// fill primary keys used for signatures
     pks[admin] = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
@@ -106,23 +114,21 @@ describe('DFSManager', function (accounts) {
     // mint tokens to test accounts 
     const fundAmount = toWei('1000', 'ether');
 
-    await this.reserveToken.deposit(
-      someone, web3.eth.abi.encodeParameter('uint256', fundAmount), { 
-        from: depositorRole 
-      }
-    );
+    for (const wallet of [someone, anotherone]) {
+      await this.reserveToken.deposit(
+        wallet, 
+        web3.eth.abi.encodeParameter('uint256', fundAmount), 
+        { 
+          from: depositorRole 
+        }
+      );
+    }
 
-    await this.reserveToken.deposit(
-      anotherone, web3.eth.abi.encodeParameter('uint256', fundAmount), { 
-        from: depositorRole 
-      }
-    );
-
-    // create ContestStorage & entry Storage contracts
+    // create ContestStorage
     this.contestStorage = await ContestStorage.new({ from: owner });
 
     // create DFSManager
-    this.dsfManager = await DFSManager.new(
+    this.dfsManager = await DFSManager.new(
       this.reserveToken.address,
       this.contestStorage.address, 
       { 
@@ -131,60 +137,173 @@ describe('DFSManager', function (accounts) {
     );
 
     // sets storages' operation manager
-    await this.contestStorage.setOperationManager(this.dsfManager.address, { from: owner });
+    await this.contestStorage.setOperationManager(
+      this.dfsManager.address, 
+      { 
+        from: owner 
+      }
+    );
 
-    // sets DFSManager's admin and Fee collector addr.
-    await this.dsfManager.setAdminAddress(admin, { from: owner });
-    await this.dsfManager.setFeeCollector(feeCollector, { from: owner });
-    
-    // Contest & entry params
-    this.creationFee = toWei('100', 'ether')
-    this.entryFee = toWei('10', 'ether')
-    this.transferFee = toWei('2', 'ether')
-    this.platformCut = 10
-    this.creatorCut = 10
-    this.mathPrecision = 10000 
+    // sets admin addr, fee collector & rewardManager
+    this.dfsManager.setAdminAddress(admin, { from: owner });
+    this.dfsManager.setFeeCollector(feeCollector, { from: owner });
   });
 
   describe("migrateReserve()", function() {
     it(`Fails - not owner`, async function() {
-      throw new Error("not implemented");
+      await expectRevert(
+        this.dfsManager.migrateReserve(
+          someone,
+          { 
+            from: someone
+          }
+        ), 
+        "Ownable: caller is not the owner"
+      );
     });
     it(`Migrates OK`, async function() {
-      throw new Error("not implemented");
+      const balanceAmount = toBN('10');
+
+      // mint to contract
+      await this.reserveToken.deposit(
+        this.dfsManager.address, 
+        web3.eth.abi.encodeParameter('uint256', balanceAmount), 
+        { 
+          from: depositorRole 
+        }
+      );
+
+      const contractBalance = await balanceSnap(
+        this.reserveToken, 
+        this.dfsManager.address, 
+        'DFSManager balance'
+      );
+
+      this.dfsManager.migrateReserve(
+        someone, { from: owner }
+      );
+
+      contractBalance.requireDecrease(balanceAmount);
     });
   });
 
   describe("setAdminAddress()", function() {
     it(`Fails - not owner`, async function() {
-      throw new Error("not implemented");
-    });
-    it(`Sets OK`, async function() {
-      throw new Error("not implemented");
+      await expectRevert(
+        this.dfsManager.setAdminAddress(
+          admin,
+          { 
+            from: someone
+          }
+        ), 
+        "Ownable: caller is not the owner"
+      );
     });
   });
 
   describe("setFeeCollector()", function() {
     it(`Fails - not owner`, async function() {
-      throw new Error("not implemented");
-    });
-    it(`Sets OK`, async function() {
-      throw new Error("not implemented");
+      await expectRevert(
+        this.dfsManager.setFeeCollector(
+          feeCollector,
+          { 
+            from: someone
+          }
+        ), 
+        "Ownable: caller is not the owner"
+      );    
     });
   });
 
   describe("setRewardManager()", function() {
     it(`Fails - not owner`, async function() {
-      throw new Error("not implemented");
-    });
-    it(`Sets OK`, async function() {
-      throw new Error("not implemented");
+      await expectRevert(
+        this.dfsManager.setRewardManager(
+          someone,
+          { 
+            from: someone
+          }
+        ), 
+        "Ownable: caller is not the owner"
+      );
     });
   });
 
   describe("createContest()", function() {
+
+    /// This structure should come from abi -> ContestInfo 
+    const contestInfo = {
+      'entryFee': toWei('10', 'ether'),
+      //
+      'startTime': 0,
+      'endTime': 0,
+      //
+      'isGuaranteed': true,
+      //
+      'contestIdType': 0,
+      'maxDraftsPerParticipant': 1,
+      //
+      'maxParticipants': 10,
+      //
+      'selectedGames': web3.eth.abi.encodeParameter('string', "36821"),
+      //
+    };
+
     it(`Fails - invalid admin signature`, async function() {
-      throw new Error("not implemented");
+
+      const now = await time.latest();
+
+      // set start & end times
+      contestInfo.startTime = now.add(time.duration.minutes(5)).toString();
+      contestInfo.endTime = now.add(time.duration.minutes(15)).toString();
+
+      const extraParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dfsManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...contestInfo, ...extraParams }
+      );
+      
+      const orderAdminSignature = await createSignature(
+        contestHash, 
+        someone // test a non admin signer
+      );
+
+      // EIP712
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
+      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        orderExpiration,
+        this.reserveToken.address,      // The token contract address
+        toWei('10', 'ether'),           // Creation fee in wei amount
+        this.dfsManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
+        someone // from address included in the EIP712signature
+      );
+
+      // Sign EIP712 transfer order
+      const eip712TransferSignature = ethSign.signTypedData(
+        toBuffer(pks[someone]), { data: typedData }
+      );
+
+      await expectRevert(
+        this.dfsManager.createContest(
+          contestInfo,
+          // admin signature
+          orderAdminSignature, 
+          // EIP712.
+          orderExpiration,
+          orderId,
+          eip712TransferSignature, 
+          { 
+            from: anotherone 
+          }
+        ),
+        "createContest() - invalid admin signature"
+      );
     });
     it(`Creates OK`, async function() {
       throw new Error("not implemented");
@@ -252,7 +371,7 @@ describe('DFSManager', function (accounts) {
       
       // const signatureParams = {
       //   'chainId': await web3.eth.net.getId(),
-      //   'verifyingContract' : this.dsfManager.address
+      //   'verifyingContract' : this.dfsManager.address
       // }
 
       // const contestHash = createContestHash(
@@ -290,7 +409,7 @@ describe('DFSManager', function (accounts) {
         orderExpiration,
         this.reserveToken.address,      // The token contract address
         createContestArgs.creationFee,  // tokens amount
-        this.dsfManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dfsManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -309,7 +428,7 @@ describe('DFSManager', function (accounts) {
         this.reserveToken, feeCollector, 'fees collector reserve balance'
       );
 
-      await this.dsfManager.createContest(
+      await this.dfsManager.createContest(
         createContestArgs,
         // admin signature
         orderAdminSignature, 
@@ -349,7 +468,7 @@ describe('DFSManager', function (accounts) {
       
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const contestHash = createContestHash(
@@ -367,7 +486,7 @@ describe('DFSManager', function (accounts) {
         orderExpiration,
         this.reserveToken.address,      // The token contract address
         createContestArgs.creationFee,  // tokens amount
-        this.dsfManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dfsManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -376,7 +495,7 @@ describe('DFSManager', function (accounts) {
         toBuffer(pks[someone]), { data: typedData }
       );
 
-      await expectRevert(this.dsfManager.createContest(
+      await expectRevert(this.dfsManager.createContest(
         createContestArgs,
         // admin signature
         orderAdminSignature, 
@@ -407,7 +526,7 @@ describe('DFSManager', function (accounts) {
       
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const contestHash = createContestHash(
@@ -425,7 +544,7 @@ describe('DFSManager', function (accounts) {
         orderExpiration,
         this.reserveToken.address,   // The token contract address
         createContestArgs.creationFee,  // tokens amount
-        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dfsManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -447,7 +566,7 @@ describe('DFSManager', function (accounts) {
         'selectedGames': web3.eth.abi.encodeParameter('string', "0001|0002")        
       }
 
-      await expectRevert(this.dsfManager.createContest(
+      await expectRevert(this.dfsManager.createContest(
         invalidContestArgs,
         // admin signature
         orderAdminSignature, 
@@ -485,7 +604,7 @@ describe('DFSManager', function (accounts) {
       
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const contestHash = createContestHash(
@@ -494,7 +613,7 @@ describe('DFSManager', function (accounts) {
       
       const orderAdminSignature = await createSignature(contestHash, admin);  
 
-      await this.dsfManager.editContest(
+      await this.dfsManager.editContest(
         createdContestHash,
         editContestArgs,
         // admin signature
@@ -528,7 +647,7 @@ describe('DFSManager', function (accounts) {
       
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const contestHash = createContestHash(
@@ -537,7 +656,7 @@ describe('DFSManager', function (accounts) {
       
       const orderAdminSignature = await createSignature(contestHash, admin);  
 
-      await expectRevert(this.dsfManager.editContest(
+      await expectRevert(this.dfsManager.editContest(
         createdContestHash,
         editContestArgs,
         // admin signature
@@ -572,7 +691,7 @@ describe('DFSManager', function (accounts) {
       
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const contestHash = createContestHash(
@@ -581,7 +700,7 @@ describe('DFSManager', function (accounts) {
       
       const orderAnotherOneSignature = await createSignature(contestHash, anotherone);  
 
-      await expectRevert(this.dsfManager.editContest(
+      await expectRevert(this.dfsManager.editContest(
         createdContestHash,
         editContestArgs,
         // another signature
@@ -612,7 +731,7 @@ describe('DFSManager', function (accounts) {
 
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const entryHash = createEntryHash(
@@ -630,7 +749,7 @@ describe('DFSManager', function (accounts) {
         orderExpiration,
         this.reserveToken.address, /// The token contract address
         entryFee,  // tokens amount
-        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dfsManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         someone // from address included in the EIP712signature
       );
 
@@ -640,7 +759,7 @@ describe('DFSManager', function (accounts) {
           );  
   
 
-      await expectRevert(this.dsfManager.createContestEntry(
+      await expectRevert(this.dfsManager.createContestEntry(
         createdContestHash, 
         entryFee, 
         draftedPlayers, 
@@ -675,7 +794,7 @@ describe('DFSManager', function (accounts) {
 
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const entryHash = createEntryHash(
@@ -693,7 +812,7 @@ describe('DFSManager', function (accounts) {
         orderExpiration,
         this.reserveToken.address, /// The token contract address
         this.entryFee,  // tokens amount
-        this.dsfManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
+        this.dfsManager.address, // Spender address is the calling contract that transfer tokens in behalf of the user
         anotherone // from address included in the EIP712signature
       );
 
@@ -716,10 +835,10 @@ describe('DFSManager', function (accounts) {
       );            
 
       const dfsManagerBalanceTracker = await balanceSnap(
-        this.reserveToken, this.dsfManager.address, 'someones\s reserve balance'
+        this.reserveToken, this.dfsManager.address, 'someones\s reserve balance'
       );      
 
-      const tx = await this.dsfManager.createContestEntry(
+      const tx = await this.dfsManager.createContestEntry(
         createdContestHash, 
         this.entryFee, 
         draftedPlayers, 
@@ -784,7 +903,7 @@ describe('DFSManager', function (accounts) {
 
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const entryHash = editEntryHash(
@@ -794,7 +913,7 @@ describe('DFSManager', function (accounts) {
       // Invalid signature
       const orderInvalidSignature = await createSignature(entryHash, someone);   
       
-      await expectRevert(this.dsfManager.editContestEntry(
+      await expectRevert(this.dfsManager.editContestEntry(
         this.createdEntryHash, 
         draftedPlayers, 
         orderInvalidSignature, 
@@ -830,7 +949,7 @@ describe('DFSManager', function (accounts) {
 
       const signatureParams = {
         'chainId' : await web3.eth.net.getId(),
-        'verifyingContract' : this.dsfManager.address
+        'verifyingContract' : this.dfsManager.address
       }
       
       const entryHash = editEntryHash(
@@ -839,7 +958,7 @@ describe('DFSManager', function (accounts) {
   
       const orderAdminSignature = await createSignature(entryHash, admin);   
       
-      const tx = await this.dsfManager.editContestEntry(
+      const tx = await this.dfsManager.editContestEntry(
         createdEntryHash, 
         draftedPlayers, 
         orderAdminSignature, 
@@ -872,7 +991,7 @@ describe('DFSManager', function (accounts) {
           'claimedAmount': claimedAmount,
           'entryHashArr': createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.dsfManager.address
+          'verifyingContract' : this.dfsManager.address
       };
   
       const rewardHash = claimRewardHash(claimRewardArgs);
@@ -882,7 +1001,7 @@ describe('DFSManager', function (accounts) {
         this.reserveToken, anotherone, 'someones\s reserve balance'
       );  
 
-      const tx = await this.dsfManager.claimContesEntry(
+      const tx = await this.dfsManager.claimContesEntry(
         claimedAmount, 
         [createdEntryHash], 
         orderAdminSignature, 
@@ -906,14 +1025,14 @@ describe('DFSManager', function (accounts) {
           'claimedAmount': claimedAmount,
           'entryHashArr': this.createdEntryHash,
           'chainId' : await web3.eth.net.getId(),
-          'verifyingContract' : this.dsfManager.address          
+          'verifyingContract' : this.dfsManager.address          
       };
   
       const rewardHash = claimRewardHash(claimRewardArgs);
       const orderSomeoneSignature = await createSignature(rewardHash, someone);   
       
       await expectRevert(
-        this.dsfManager.claimContesEntry(
+        this.dfsManager.claimContesEntry(
           claimedAmount, 
           [this.createdEntryHash], 
           orderSomeoneSignature,
@@ -939,12 +1058,12 @@ describe('DFSManager', function (accounts) {
         }
       );
 
-      balanceToMigrate = await this.reserveToken.balanceOf(this.dsfManager.address)
+      balanceToMigrate = await this.reserveToken.balanceOf(this.dfsManager.address)
   
-      await this.dsfManager.migrateReserve(this.newDfsManager.address);
+      await this.dfsManager.migrateReserve(this.newDfsManager.address);
   
       newDFSManagerBalance = await this.reserveToken.balanceOf(this.newDfsManager.address)
-      oldDFSManagerBalance = await this.reserveToken.balanceOf(this.dsfManager.address)
+      oldDFSManagerBalance = await this.reserveToken.balanceOf(this.dfsManager.address)
   
       // Check expected behaviour after migration
       
