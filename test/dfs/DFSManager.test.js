@@ -146,6 +146,87 @@ describe('DFSManager', function (accounts) {
     this.mathPrecision = 10000 
   });
 
+  describe("migrateReserve()", function() {
+    it(`Fails - not owner`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Migrates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("setAdminAddress()", function() {
+    it(`Fails - not owner`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Sets OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("setFeeCollector()", function() {
+    it(`Fails - not owner`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Sets OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("setRewardManager()", function() {
+    it(`Fails - not owner`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Sets OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("createContest()", function() {
+    it(`Fails - invalid admin signature`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("editContest()", function() {
+    it(`Fails - invalid admin signature`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("createContestEntry()", function() {
+    it(`Fails - invalid admin signature`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("editContestEntry()", function() {
+    it(`Fails - invalid admin signature`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
+  describe("claimContestEntry()", function() {
+    it(`Fails - invalid admin signature`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK`, async function() {
+      throw new Error("not implemented");
+    });
+  });
+
   describe("Tests contests create", function () {
     
     it("Creates a contest", async function () {
