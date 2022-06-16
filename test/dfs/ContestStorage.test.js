@@ -5,7 +5,7 @@ const {
     expectRevert, // Assertions for transactions that should fail
   } = require('@openzeppelin/test-helpers')
     
-const { toBN, toWei, fromWei, soliditySha3 } = require('web3-utils');
+const { toWei, soliditySha3 } = require('web3-utils');
 
 const expect = require('chai')
   .use(require('bn-chai')(BN))
