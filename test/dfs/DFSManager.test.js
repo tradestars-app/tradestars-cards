@@ -216,6 +216,12 @@ describe('DFSManager', function (accounts) {
     it(`Creates OK`, async function() {
       throw new Error("not implemented");
     });
+    it(`Fails - reward manager funds`, async function() {
+      throw new Error("not implemented");
+    });
+    it(`Creates OK using rewardManager balance`, async function() {
+      throw new Error("not implemented");
+    });
   });
 
   describe("claimContestEntry()", function() {
@@ -950,5 +956,4 @@ describe('DFSManager', function (accounts) {
     
     })  
   })
-
 });
