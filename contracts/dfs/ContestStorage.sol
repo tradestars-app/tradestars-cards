@@ -127,7 +127,7 @@ contract ContestStorage is OperationManaged, IContestStorage {
     {
         ContestInfoStorage storage cie = _getContestInfoStorageByHash(_contestHash);
         ContestInfo storage ci = cie.contestInfo;
-     
+
         require(
             cie.creator == _creator,
             "EditContest() - invalid owner"
@@ -136,8 +136,8 @@ contract ContestStorage is OperationManaged, IContestStorage {
         require(
             cie.participantsCount == 0,
             "EditContest() - contest has entries"
-        );        
-
+        );
+        
         require(
             ci.startTime > block.timestamp,
             "EditContest() - contest started"
@@ -147,7 +147,6 @@ contract ContestStorage is OperationManaged, IContestStorage {
             _contestArgs.startTime > block.timestamp,
             "EditContest() - invalid startTime"
         );
-
 
         // change contest params
         ci.startTime = _contestArgs.startTime;
@@ -193,8 +192,8 @@ contract ContestStorage is OperationManaged, IContestStorage {
 
         // check and increase participants' draft counter for the contest 
         require(
-            participantDraftsCount[_contestHash][_participant] < ci.maxParticipants,
-            "addEntry() - max drafts reached for contest"
+            participantDraftsCount[_contestHash][_participant] < ci.maxDraftsPerParticipant,
+            "addEntry() - draft limit"
         );
 
         participantDraftsCount[_contestHash][_participant] += 1;
@@ -242,8 +241,8 @@ contract ContestStorage is OperationManaged, IContestStorage {
 
         emit EditEntry(
             _entryHash, 
-            _participant, 
             _contestHash, 
+            _participant, 
             _draftedPlayers
         );
     }
@@ -296,7 +295,6 @@ contract ContestStorage is OperationManaged, IContestStorage {
             abi.encodePacked(
                 _participant,
                 _contestHash, 
-                _draftedPlayers,
                 // add unique id
                 entryNonce
             )
@@ -311,8 +309,8 @@ contract ContestStorage is OperationManaged, IContestStorage {
 
         emit CreateEntry(
             entryHash, 
-            _participant, 
             _contestHash, 
+            _participant, 
             _draftedPlayers
         );
     }

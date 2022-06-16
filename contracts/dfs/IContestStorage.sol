@@ -54,20 +54,20 @@ interface IContestStorage {
 
     event CreateEntry(
         bytes32 indexed entryHash,
-        address indexed from,
         bytes32 indexed contestHash,
+        address indexed participant,
         bytes draftedPlayers
     );
     
     event EditEntry(
         bytes32 indexed entryHash,
-        address indexed from,
         bytes32 indexed contestHash,
+        address indexed participant,
         bytes draftedPlayers
     );
     
     event ClaimEntry(
-        address indexed from,
+        address indexed participant,
         bytes32 indexed entryHash
     );
 
