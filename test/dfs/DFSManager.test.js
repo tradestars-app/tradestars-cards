@@ -250,7 +250,6 @@ describe('DFSManager', function (accounts) {
     };
 
     it(`Fails - invalid admin signature`, async function() {
-
       const now = await time.latest();
 
       // set start & end times
@@ -299,14 +298,106 @@ describe('DFSManager', function (accounts) {
           orderId,
           eip712TransferSignature, 
           { 
-            from: anotherone 
+            from: someone 
           }
         ),
         "createContest() - invalid admin signature"
       );
     });
     it(`Creates OK`, async function() {
-      throw new Error("not implemented");
+      const now = await time.latest();
+
+      // set start & end times
+      contestInfo.startTime = now.add(time.duration.minutes(5)).toString();
+      contestInfo.endTime = now.add(time.duration.minutes(15)).toString();
+
+      const extraParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.dfsManager.address
+      }
+      
+      const contestHash = createContestHash(
+        { ...contestInfo, ...extraParams }
+      );
+      
+      const orderAdminSignature = await createSignature(
+        contestHash, 
+        admin
+      );
+
+      //
+      // calc creation fee for this contest
+      const platformCut = await this.dfsManager.PLATFORM_CUT();
+      const creatorCut = await this.dfsManager.CREATOR_CUT();
+      
+      const contestPlatformCut = toBN(contestInfo.entryFee)
+          .mul(toBN(contestInfo.maxParticipants))
+          .mul(platformCut)
+          .div(toBN(10000));
+
+      let creationFee = contestPlatformCut;
+      
+      if (contestInfo.isGuaranteed) {
+        creationFee = 
+          toBN(contestInfo.entryFee)
+            .mul(toBN(contestInfo.maxParticipants))
+            .mul(toBN(10000).sub(creatorCut))
+            .div(toBN(10000));
+      }
+
+      // EIP712
+      const orderId = `0x${randomBytes(32).toString('hex')}`; // create a random orderId
+      const orderExpiration = Math.floor((new Date()).getTime() / 1000) + 60; // give 60 secs for validity
+
+      const typedData = getOrderTypedData(
+        orderId,
+        orderExpiration,
+        this.reserveToken.address,      // The token contract address
+        creationFee,                    // Creation fee in wei amount
+        this.dfsManager.address,        // Spender address is the calling contract that transfer tokens in behalf of the user
+        someone // from address included in the EIP712signature
+      );
+
+      // Sign EIP712 transfer order
+      const eip712TransferSignature = ethSign.signTypedData(
+        toBuffer(pks[someone]), { data: typedData }
+      );
+
+      const contractBalance = await balanceSnap(
+        this.reserveToken, 
+        this.dfsManager.address, 
+        'DFSManager balance'
+      );
+
+      const feeCollectorBalance = await balanceSnap(
+        this.reserveToken, 
+        feeCollector, 
+        'Fee Collector balance'
+      );
+
+      const tx = await this.dfsManager.createContest(
+        contestInfo,
+        // admin signature
+        orderAdminSignature, 
+        // EIP712.
+        orderExpiration,
+        orderId,
+        eip712TransferSignature, 
+        { 
+          from: someone 
+        }
+      );
+
+      // check balances
+
+      contractBalance.requireIncrease(
+        creationFee.sub(contestPlatformCut)
+      );
+      
+      feeCollectorBalance.requireIncrease(
+        contestPlatformCut
+      );
+
     });
   });
 
