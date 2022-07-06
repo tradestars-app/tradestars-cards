@@ -66,7 +66,7 @@ contract RewardManager is OperationManaged, IRewardManager {
     {
         require(
             balancesHash[_beneficiary] >= _amount, 
-            "spendBalance: not enougth balance"
+            "spendBalance: not enought balance"
         );
 
         balancesHash[_beneficiary] -= _amount; 
