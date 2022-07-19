@@ -273,24 +273,32 @@ contract DFSManager is Ownable, IDFSManager, MetaTransactionsMixin {
             "createContestEntry() - invalid admin signature"
         );
 
-        // create EIP712 transfer order
-        bytes32 eipTransferOrderHash = keccak256(
-            abi.encodePacked(
-                _eip721OrderId, 
-                address(reserveToken), 
-                _maxPayableFee
-            )
-        );
+        /**
+         * Check if the user covers the entry fee
+         *  Is it possible that _maxPayableFee is 0 so the 
+         *  contract tries to cover the entry fee from 
+         *  wallet's bonus, if available
+         */
+        if (_maxPayableFee > 0) {
+            // create EIP712 transfer order
+            bytes32 eipTransferOrderHash = keccak256(
+                abi.encodePacked(
+                    _eip721OrderId, 
+                    address(reserveToken), 
+                    _maxPayableFee
+                )
+            );
 
-        // Transfer TSX contestEntryFee from sender using EIP712 signature
-        ITransferWithSig(address(reserveToken)).transferWithSig(
-            _eip712TransferSignature,
-            _maxPayableFee,             // amount
-            eipTransferOrderHash,
-            _eip721OrderExpiration,
-            sender,                     // from
-            address(this)               // to
-        );
+            // Transfer TSX contestEntryFee from sender using EIP712 signature
+            ITransferWithSig(address(reserveToken)).transferWithSig(
+                _eip712TransferSignature,
+                _maxPayableFee,             // amount
+                eipTransferOrderHash,
+                _eip721OrderExpiration,
+                sender,                     // from
+                address(this)               // to
+            );
+        }
 
         // get contest reference
         (address creator, uint256 entryFee) = contestStorage.getContestData(
