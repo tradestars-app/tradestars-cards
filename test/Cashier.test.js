@@ -52,7 +52,6 @@ const depositHash = (args) => {
 
 describe('Cashier', function () {
 
-  let owner, someone, depositorRole;
   let pks = {};
 
   before(async function() {
@@ -61,7 +60,8 @@ describe('Cashier', function () {
       admin, 
       someone, 
       anotherOne, 
-      depositorRole
+      depositorRole,
+      feeCollector
     ] = await web3.eth.getAccounts();
 
     /// fill primary keys used for signatures
@@ -73,9 +73,10 @@ describe('Cashier', function () {
     this.reserveToken = await TSXChild.new({ from: owner });
     this.reserveToken.setDepositor(depositorRole, { from: owner });
 
-    // Create cashier contrat and set admin addr
+    // Create cashier contrat and set admin addr and feeCollector
     this.contract = await Cashier.new(this.reserveToken.address, {from: owner });
     this.contract.setAdminAddress(admin, { from: owner });
+    this.contract.setFeeCollector(feeCollector, { from: owner });
 
     // Create some ERC20 token
     this.ERC20token = await ERC20.new();
@@ -246,6 +247,51 @@ describe('Cashier', function () {
 
     });
 
+    it('Should NOT deposit if feeCollector is unset', async function(){
+
+      amountSrc = toWei('10')
+      amountReserve = toWei('100')
+      orderExpiration = await web3.eth.getBlockNumber() + 10
+
+      const depositHashArgs = {
+        'token': this.ERC20token.address,
+        'amountSrc': amountSrc,
+        'amountReserve': amountReserve,
+        'orderExpiration': orderExpiration
+      };
+
+      const signatureParams = {
+        'chainId' : await web3.eth.net.getId(),
+        'verifyingContract' : this.contract.address
+      }
+    
+      const hash = depositHash(
+        { ...depositHashArgs, ...signatureParams }
+      );      
+      
+      const signature = await createSignature(hash, admin);
+      
+      // unset fee collector. 
+      this.contract.setFeeCollector(ZERO_ADDRESS)
+
+      await expectRevert(this.contract.deposit(
+        this.ERC20token.address,
+        someone,
+        anotherOne,
+        amountSrc,
+        amountReserve,
+        orderExpiration,
+        signature,
+        {
+          from: someone,
+        }        
+      ), 'deposit - feeCollector not available')
+
+      // set fee collector again. 
+      this.contract.setFeeCollector(feeCollector)      
+
+    });    
+
     it('Should OK deposit ERC20 token and receive Reserve Token', async function(){
 
       amountSrc = toWei('10')
@@ -284,8 +330,8 @@ describe('Cashier', function () {
         this.reserveToken, this.contract.address, 'someone\s reserve'
       );        
 
-      const contractERC20Tracker = await balanceSnap(
-        this.ERC20token, this.contract.address, 'contract\s ERC20'
+      const feeCollectorERC20Tracker = await balanceSnap(
+        this.ERC20token, feeCollector, 'contract\s ERC20'
       );         
 
       tx = await this.contract.deposit(
@@ -304,7 +350,7 @@ describe('Cashier', function () {
       // increase - decrease asserts
       // ERC20
       await someoneERC20Tracker.requireDecrease(toBN(amountSrc));      
-      await contractERC20Tracker.requireIncrease(toBN(amountSrc));      
+      await feeCollectorERC20Tracker.requireIncrease(toBN(amountSrc));      
       
       // Reserve
       await anotherOneReserveTracker.requireIncrease(toBN(amountReserve));      
@@ -391,8 +437,8 @@ describe('Cashier', function () {
       const someoneNativeTokenBefore = await web3.eth.getBalance(
         someone
       )
-      const contractNativeTokenBefore = await web3.eth.getBalance(
-        this.contract.address
+      const feeCollectorNativeTokenBefore = await web3.eth.getBalance(
+        feeCollector
       )      
 
       const anotherOneReserveTracker = await balanceSnap(
@@ -424,10 +470,10 @@ describe('Cashier', function () {
       )
       expect(someoneNativeTokenAfter).to.not.equal(someoneNativeTokenBefore);
 
-      const contractNativeTokenAfter = await web3.eth.getBalance(
-        this.contract.address
+      const feeCollectorNativeTokenAfter = await web3.eth.getBalance(
+       feeCollector
       )            
-      expect(contractNativeTokenAfter).to.not.equal(contractNativeTokenBefore);
+      expect(feeCollectorNativeTokenAfter).to.not.equal(feeCollectorNativeTokenBefore);
 
       
       // Reserve
@@ -442,81 +488,6 @@ describe('Cashier', function () {
         'srcAmount': amountSrc,
         'reserveAmount': amountReserve,
       });     
-
-    });
-
-    it('Should NOT collect balances if caller is not the owner', async function(){
-      
-      tokens = [this.ERC20token.address]
-      collectorAdd = owner
-      
-      await expectRevert( 
-        this.contract.collectBalances(
-          tokens,
-          collectorAdd,
-          {
-            from: someone,
-          }
-      ), 'Ownable: caller is not the owner')
-
-    });
-
-    it('Should OK collect ERC20 balances', async function(){
-      tokens = [this.ERC20token.address]
-      collectorAdd = owner
-      amountSrc = toWei('10') //ERC20 amount already in contract
-
-      const collectorERC20Tracker = await balanceSnap(
-        this.ERC20token, collectorAdd, 'collector\s reserve'
-      );       
-      const contractERC20Tracker = await balanceSnap(
-        this.ERC20token, this.contract.address, 'contract\s reserve'
-      );               
-      
-      await this.contract.collectBalances(
-          tokens,
-          collectorAdd,
-          {
-            from: owner,
-          }
-      );
-
-      // increase - decrease asserts
-      // ERC20
-      await contractERC20Tracker.requireDecrease(toBN(amountSrc));      
-      await collectorERC20Tracker.requireIncrease(toBN(amountSrc));      
-    });
-
-    it('Should OK collect Native token balance', async function(){
-      tokens = [ZERO_ADDRESS]
-      collectorAdd = owner
-      amountSrc = toWei('10') //Native token amount already in contract
-
-      const ownerNativeTokenBefore = await web3.eth.getBalance(
-        owner
-      )
-      const contractNativeTokenBefore = await web3.eth.getBalance(
-        this.contract.address
-      )
-
-      tx = await this.contract.collectBalances(
-        tokens,
-        collectorAdd,
-        {
-          from: owner,
-        }
-      );      
-
-      const ownerNativeTokenAfter = await web3.eth.getBalance(
-        owner
-      )
-      const contractNativeTokenAfter = await web3.eth.getBalance(
-        this.contract.address
-      )     
-
-      expect(ownerNativeTokenAfter).to.not.equal(ownerNativeTokenBefore);
-      expect(contractNativeTokenAfter).to.not.equal(contractNativeTokenBefore);
-
 
     });
 
