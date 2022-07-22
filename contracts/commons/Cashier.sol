@@ -17,7 +17,7 @@ contract Cashier is Ownable, MetaTransactionsMixin {
     using SafeERC20 for IERC20;
 
     // fees collector
-    address public feeCollector;
+    address payable feeCollector;
 
     // Reserve Token.
     IERC20 public immutable reserveToken;
@@ -59,7 +59,7 @@ contract Cashier is Ownable, MetaTransactionsMixin {
      * @dev sets the platforms fee collector
      * @param _feeCollector address
      */
-    function setFeeCollector(address _feeCollector) external onlyOwner {
+    function setFeeCollector(address payable _feeCollector) external onlyOwner {
         feeCollector = _feeCollector;
     }
 
