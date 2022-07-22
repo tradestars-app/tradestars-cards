@@ -16,7 +16,8 @@ contract Cashier is Ownable, MetaTransactionsMixin {
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
 
-    mapping(address => uint256) private depositBalances;
+    // fees collector
+    address public feeCollector;
 
     // Reserve Token.
     IERC20 public immutable reserveToken;
@@ -55,23 +56,11 @@ contract Cashier is Ownable, MetaTransactionsMixin {
     }
 
     /**
-     * @dev Collect the accumulated balances 
+     * @dev sets the platforms fee collector
+     * @param _feeCollector address
      */
-    function collectBalances(
-        address[] calldata _tokens, 
-        address _collectionAddr
-    ) 
-        external onlyOwner 
-    {
-        for (uint i = 0; i < _tokens.length; i++) {
-            address token = _tokens[i];
-
-            uint256 balance = depositBalances[token];
-            depositBalances[token] = 0;
-
-            // Get balance
-            IERC20(token).safeTransfer(_collectionAddr, balance);
-        }
+    function setFeeCollector(address _feeCollector) external onlyOwner {
+        feeCollector = _feeCollector;
     }
 
     /**
@@ -96,7 +85,7 @@ contract Cashier is Ownable, MetaTransactionsMixin {
         external payable
     {
         require(
-            _orderExpiration == 0 || block.number <= _orderExpiration,
+            block.number <= _orderExpiration,
             "deposit(): signature is expired"
         );
 
@@ -127,15 +116,19 @@ contract Cashier is Ownable, MetaTransactionsMixin {
             "deposit() - invalid admin signature"
         );
 
+        // require feeCollector
+        require(
+            address(feeCollector) != address(0), 
+            "deposit - feeCollector not available"
+        );
+
         if (_token == address(0)) {
-            depositBalances[_token] += msg.value;
+            feeCollector.transfer(msg.value);
 
         } else {
-            depositBalances[_token] += _amountSrc;
-            
-            // transfer must be previoulsy approved
+            // cashier must be previoulsy approved spender
             IERC20(_token).transferFrom(
-                _from, address(this), _amountSrc
+                _from, feeCollector, _amountSrc
             );
         }
 
