@@ -122,7 +122,8 @@ contract Cashier is Ownable, MetaTransactionsMixin {
             "deposit - feeCollector not available"
         );
 
-        if (_token == address(0)) {
+        // If its polygon's native token
+        if (_token == address(0x0000000000000000000000000000000000001010)) {
             feeCollector.transfer(msg.value);
 
         } else {
