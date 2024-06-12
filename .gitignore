@@ -3,6 +3,7 @@ node_modules
 
 # Truffle artifacts
 build
+artifacts
 
 # OpenZeppelin SDK
 .openzeppelin/dev-[^15001]*.json
@@ -12,5 +13,6 @@ build
 .env
 
 # Other
+cache
 .DS_Store
 .idea
